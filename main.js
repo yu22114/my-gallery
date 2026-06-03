@@ -18,6 +18,10 @@ resize(); window.addEventListener('resize', resize);
 function rnd(a,b){ return a + Math.random()*(b-a); }
 function rndInt(a,b){ return rnd(a,b)|0; }
 
+// ---- コダック画像プリロード ----
+const kodakImg = new Image();
+kodakImg.src = document.querySelector('.item img')?.src || 'images/IMG_0526.jpeg';
+
 // ========================================
 // 1. ブラックホール（エグ版）
 // ========================================
@@ -124,6 +128,18 @@ function launchBlackHole(done){
       ctx.lineWidth   = 2;
       ctx.beginPath(); ctx.arc(cx, cy, holeR, 0, Math.PI*2); ctx.stroke();
       ctx.restore();
+
+      // 中心にコダック画像（穴より少し小さく・回転しながら吸い込まれる雰囲気）
+      if(kodakImg.complete && holeR > 8){
+        const imgR = holeR * 0.85;
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, frame/30);
+        ctx.translate(cx, cy);
+        ctx.rotate(frame * 0.04);
+        ctx.beginPath(); ctx.arc(0, 0, imgR, 0, Math.PI*2); ctx.clip();
+        ctx.drawImage(kodakImg, -imgR, -imgR, imgR*2, imgR*2);
+        ctx.restore();
+      }
     }
 
     ctx.restore();
@@ -215,6 +231,7 @@ function launchLightning(done){
       width: rnd(1.5, 4),
       color: colors[rndInt(0, colors.length)],
       alpha: 1,
+      imgX: x1,   // 始点X
     };
   }
 
@@ -232,6 +249,19 @@ function launchLightning(done){
       }
       bolt.alpha = Math.max(0, 1 - bolt.frame / 22);
       drawBolt(bolt.segs, bolt.alpha, bolt.width, bolt.color);
+
+      // 始点にコダック画像（小さく・グロー付き）
+      if(kodakImg.complete && bolt.alpha > 0){
+        const r = 28;
+        ctx.save();
+        ctx.globalAlpha = bolt.alpha;
+        ctx.shadowColor = bolt.color;
+        ctx.shadowBlur  = 20;
+        ctx.beginPath(); ctx.arc(bolt.imgX, 0, r, 0, Math.PI*2); ctx.clip();
+        ctx.drawImage(kodakImg, bolt.imgX - r, -r, r*2, r*2);
+        ctx.restore();
+      }
+
       bolt.frame++;
     });
 
@@ -395,6 +425,15 @@ function launchTextBoom(done){
     const textAlpha = frame < 4 ? frame/4 : Math.max(0, 1-(frame-40)/50);
     if(textAlpha > 0){
       const fontSize = Math.min(W*0.13, 72) * scale;
+      const imgSize  = fontSize * 3.5;
+
+      // 文字の裏に薄いコダック
+      if(kodakImg.complete){
+        ctx.save();
+        ctx.globalAlpha = textAlpha * 0.22;
+        ctx.drawImage(kodakImg, cx - imgSize/2, cy - imgSize/2, imgSize, imgSize);
+        ctx.restore();
+      }
       ctx.save();
       ctx.globalAlpha  = textAlpha;
       ctx.font         = `900 ${fontSize}px sans-serif`;
@@ -453,6 +492,8 @@ function launchFlash(done){
         l.x += l.speed;
         if(l.x < W + l.halfW){
           const a = lineFade;
+
+          // グロー帯（白い光）
           const grad = ctx.createLinearGradient(l.x-l.halfW,0,l.x+l.halfW,0);
           grad.addColorStop(0,    'rgba(255,255,255,0)');
           grad.addColorStop(0.35, `rgba(255,255,255,${(a*0.3).toFixed(3)})`);
@@ -464,10 +505,19 @@ function launchFlash(done){
           ctx.shadowBlur  = 60;
           ctx.fillStyle   = grad;
           ctx.fillRect(l.x-l.halfW, l.y-l.thickness*5, l.halfW*2, l.thickness*10);
-          ctx.shadowBlur  = 0;
-          ctx.fillStyle   = `rgba(255,255,255,${a.toFixed(3)})`;
-          ctx.fillRect(l.x-l.halfW, l.y-l.thickness/2, l.halfW*2, l.thickness);
           ctx.restore();
+
+          // コダック画像が光と一緒に走る
+          if(kodakImg.complete){
+            const imgH = l.thickness * 12;
+            const imgW = imgH * (kodakImg.naturalWidth / kodakImg.naturalHeight || 1);
+            ctx.save();
+            ctx.globalAlpha = a * 0.9;
+            ctx.shadowColor = 'rgba(255,255,255,0.8)';
+            ctx.shadowBlur  = 30;
+            ctx.drawImage(kodakImg, l.x - imgW/2, l.y - imgH/2, imgW, imgH);
+            ctx.restore();
+          }
         }
       });
     }
