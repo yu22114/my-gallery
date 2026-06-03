@@ -224,14 +224,16 @@ function launchLightning(done){
   let frame = 0;
 
   function spawnBolt(){
-    const x1 = rnd(W*0.05, W*0.95);
+    const x1  = rnd(W*0.05, W*0.95);
+    const y1  = H * rnd(0.22, 0.28);   // 画面の上から1/4あたり
     return {
-      segs: makeBolt(x1, 0, x1 + rnd(-200,200), H * rnd(0.7,1.1), 5),
+      segs: makeBolt(x1, y1, x1 + rnd(-200,200), H * rnd(0.9,1.05), 5),
       frame: 0,
       width: rnd(1.5, 4),
       color: colors[rndInt(0, colors.length)],
       alpha: 1,
-      imgX: x1,   // 始点X
+      imgX: x1,
+      imgY: y1,   // 始点Y
     };
   }
 
@@ -250,15 +252,14 @@ function launchLightning(done){
       bolt.alpha = Math.max(0, 1 - bolt.frame / 22);
       drawBolt(bolt.segs, bolt.alpha, bolt.width, bolt.color);
 
-      // 始点にコダック画像（小さく・グロー付き）
+      // 始点にコダック画像（四角・透明度50%・グロー付き）
       if(kodakImg.complete && bolt.alpha > 0){
-        const r = 28;
+        const s = 56;  // 一辺のサイズ
         ctx.save();
-        ctx.globalAlpha = bolt.alpha;
+        ctx.globalAlpha = bolt.alpha * 0.5;
         ctx.shadowColor = bolt.color;
         ctx.shadowBlur  = 20;
-        ctx.beginPath(); ctx.arc(bolt.imgX, 0, r, 0, Math.PI*2); ctx.clip();
-        ctx.drawImage(kodakImg, bolt.imgX - r, -r, r*2, r*2);
+        ctx.drawImage(kodakImg, bolt.imgX - s/2, bolt.imgY - s/2, s, s);
         ctx.restore();
       }
 
@@ -463,9 +464,10 @@ function launchFlash(done){
 
   const lines = [];
   for(let i = 0; i < rndInt(2,4); i++){
-    lines.push({ y:H*rnd(0.1,0.9), x:-250, halfW:rnd(80,200), speed:rnd(30,65), thickness:rnd(2,8) });
+    lines.push({ y:H*rnd(0.1,0.9), x:-250, halfW:rnd(80,200), speed:rnd(15,32), thickness:rnd(2,8) });
   }
-  lines.push({ y:H*rnd(0.3,0.7), x:-500, halfW:rnd(280,500), speed:rnd(85,130), thickness:rnd(12,26) });
+  // 主役のコダックラインはゆっくり目
+  lines.push({ y:H*rnd(0.3,0.7), x:-500, halfW:rnd(280,500), speed:rnd(40,65), thickness:rnd(12,26) });
 
   let frame = 0;
   const total = DARK_FRAMES + HOLD_FRAMES + FADE_FRAMES + 40;
