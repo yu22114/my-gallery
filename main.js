@@ -83,31 +83,73 @@ function launchBlackHole(){
 // ========================================
 // 2. 稲妻
 // ========================================
-function lightning(x1, y1, x2, y2, depth){
+function makeBolt(x1, y1, x2, y2, depth){
   if(depth === 0) return [[x1,y1,x2,y2]];
-  const mx = (x1+x2)/2 + rnd(-1,1) * rnd(20,80) * (depth/4);
-  const my = (y1+y2)/2 + rnd(-1,1) * rnd(20,80) * (depth/4);
+  const spread = rnd(60, 160) * (depth / 5);
+  const mx = (x1+x2)/2 + rnd(-1,1) * spread;
+  const my = (y1+y2)/2 + rnd(-1,1) * spread * 0.3;
   const segs = [
-    ...lightning(x1,y1,mx,my,depth-1),
-    ...lightning(mx,my,x2,y2,depth-1),
+    ...makeBolt(x1,y1,mx,my,depth-1),
+    ...makeBolt(mx,my,x2,y2,depth-1),
   ];
-  // ランダムに枝を生やす
+  if(depth >= 3 && Math.random() < 0.6){
+    const bx = mx + rnd(-1,1)*rnd(80,200);
+    const by = my + rnd(60,200);
+    segs.push(...makeBolt(mx,my,bx,by,depth-2));
+  }
   if(depth >= 2 && Math.random() < 0.4){
-    const bx = mx + rnd(-1,1)*100, by = my + rnd(30,120);
-    segs.push(...lightning(mx,my,bx,by,depth-2));
+    const bx = mx + rnd(-1,1)*rnd(40,120);
+    const by = my + rnd(40,120);
+    segs.push(...makeBolt(mx,my,bx,by,depth-2));
   }
   return segs;
 }
 
+function drawBolt(segs, alpha, width, glowColor){
+  segs.forEach(([x1,y1,x2,y2]) => {
+    ctx.save();
+    // 外側グロー（超太め）
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur  = 60;
+    ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.6})`;
+    ctx.lineWidth   = width * 4;
+    ctx.lineCap     = 'round';
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    // 中グロー
+    ctx.shadowBlur  = 25;
+    ctx.strokeStyle = glowColor.replace('1)', `${alpha})`);
+    ctx.lineWidth   = width * 2;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    // 芯（白・細い）
+    ctx.shadowBlur  = 0;
+    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+    ctx.lineWidth   = width * 0.6;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.restore();
+  });
+}
+
 function launchLightning(){
   const W = canvas.width, H = canvas.height;
-  const bolts = [];
 
-  // 2〜4本の稲妻
-  for(let b = 0; b < rndInt(2,5); b++){
-    const x1 = rnd(W*0.2, W*0.8);
-    const segs = lightning(x1, 0, x1 + rnd(-100,100), H, 4);
-    bolts.push({ segs, delay: b * rndInt(60,120), alpha: 1 });
+  // 5〜7本、複数の色で
+  const colors = [
+    'rgba(150,200,255,1)',  // 青白
+    'rgba(220,150,255,1)',  // 紫
+    'rgba(255,255,150,1)',  // 黄
+    'rgba(150,255,220,1)',  // 緑
+  ];
+  const bolts = [];
+  const count = rndInt(5, 8);
+  for(let b = 0; b < count; b++){
+    const x1 = rnd(W*0.05, W*0.95);
+    bolts.push({
+      segs: makeBolt(x1, 0, x1 + rnd(-200,200), H * rnd(0.7,1.1), 5),
+      delay: b * rndInt(30, 80),
+      alpha: 1,
+      width: rnd(1.5, 4),
+      color: colors[rndInt(0, colors.length)],
+    });
   }
 
   let frame = 0;
@@ -115,39 +157,28 @@ function launchLightning(){
     ctx.clearRect(0, 0, W, H);
     let alive = false;
 
+    // 落雷ごとの全画面フラッシュ
     bolts.forEach(bolt => {
       if(frame < bolt.delay) return;
       const age = frame - bolt.delay;
-
-      // 最初の数フレームは全体フラッシュ
-      if(age < 3){
-        ctx.fillStyle = `rgba(200,220,255,${0.15 * (3-age)/3})`;
+      if(age < 4){
+        const fi = (4 - age) / 4;
+        ctx.fillStyle = `rgba(200,220,255,${fi * 0.55})`;
         ctx.fillRect(0, 0, W, H);
       }
+    });
 
-      bolt.alpha = Math.max(0, 1 - age/18);
+    bolts.forEach(bolt => {
+      if(frame < bolt.delay) return;
+      const age = frame - bolt.delay;
+      bolt.alpha = Math.max(0, 1 - age / 22);
       if(bolt.alpha <= 0) return;
       alive = true;
-
-      bolt.segs.forEach(([x1,y1,x2,y2]) => {
-        // グロー
-        ctx.save();
-        ctx.shadowColor = 'rgba(180,220,255,1)';
-        ctx.shadowBlur  = 20;
-        ctx.strokeStyle = `rgba(255,255,255,${bolt.alpha})`;
-        ctx.lineWidth   = rnd(1, 3);
-        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-        // 細い芯
-        ctx.shadowBlur  = 0;
-        ctx.strokeStyle = `rgba(220,240,255,${bolt.alpha})`;
-        ctx.lineWidth   = 1;
-        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-        ctx.restore();
-      });
+      drawBolt(bolt.segs, bolt.alpha, bolt.width, bolt.color);
     });
 
     frame++;
-    if(alive || frame < 10) requestAnimationFrame(loop);
+    if(alive || frame < 8) requestAnimationFrame(loop);
     else ctx.clearRect(0, 0, W, H);
   })();
 }
