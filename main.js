@@ -194,55 +194,63 @@ function drawBolt(segs, alpha, width, glowColor){
 
 function launchLightning(){
   const W = canvas.width, H = canvas.height;
-
-  // 5〜7本、複数の色で
   const colors = [
-    'rgba(150,200,255,1)',  // 青白
-    'rgba(220,150,255,1)',  // 紫
-    'rgba(255,255,150,1)',  // 黄
-    'rgba(150,255,220,1)',  // 緑
+    'rgba(150,200,255,1)',
+    'rgba(220,150,255,1)',
+    'rgba(255,255,150,1)',
+    'rgba(150,255,220,1)',
   ];
-  const bolts = [];
-  const count = rndInt(5, 8);
-  for(let b = 0; b < count; b++){
+
+  // 4本を順番に落とす。1本落ちきってから次を生成
+  const STRIKES = 4;
+  let strikesDone = 0;
+  let bolts = [];
+  let frame = 0;
+
+  function spawnBolt(){
     const x1 = rnd(W*0.05, W*0.95);
-    bolts.push({
+    return {
       segs: makeBolt(x1, 0, x1 + rnd(-200,200), H * rnd(0.7,1.1), 5),
-      delay: b * rndInt(30, 80),
-      alpha: 1,
+      frame: 0,
       width: rnd(1.5, 4),
       color: colors[rndInt(0, colors.length)],
-    });
+      alpha: 1,
+    };
   }
 
-  let frame = 0;
+  bolts.push(spawnBolt());
+
   (function loop(){
     ctx.clearRect(0, 0, W, H);
-    let alive = false;
 
-    // 落雷ごとの全画面フラッシュ
     bolts.forEach(bolt => {
-      if(frame < bolt.delay) return;
-      const age = frame - bolt.delay;
-      if(age < 4){
-        const fi = (4 - age) / 4;
-        ctx.fillStyle = `rgba(200,220,255,${fi * 0.55})`;
+      // 登場直後フラッシュ
+      if(bolt.frame < 4){
+        const fi = (4 - bolt.frame) / 4;
+        ctx.fillStyle = `rgba(200,220,255,${fi * 0.6})`;
         ctx.fillRect(0, 0, W, H);
       }
+      bolt.alpha = Math.max(0, 1 - bolt.frame / 22);
+      drawBolt(bolt.segs, bolt.alpha, bolt.width, bolt.color);
+      bolt.frame++;
     });
 
-    bolts.forEach(bolt => {
-      if(frame < bolt.delay) return;
-      const age = frame - bolt.delay;
-      bolt.alpha = Math.max(0, 1 - age / 22);
-      if(bolt.alpha <= 0) return;
-      alive = true;
-      drawBolt(bolt.segs, bolt.alpha, bolt.width, bolt.color);
-    });
+    // 今のボルトが消えたら次を生成
+    if(bolts.length > 0 && bolts[bolts.length-1].alpha <= 0){
+      bolts = [];
+      strikesDone++;
+      if(strikesDone < STRIKES){
+        // 少し間を置いてから次の雷
+        setTimeout(()=>{ bolts.push(spawnBolt()); }, rndInt(80,200));
+      }
+    }
 
     frame++;
-    if(alive || frame < 8) requestAnimationFrame(loop);
-    else ctx.clearRect(0, 0, W, H);
+    if(strikesDone < STRIKES || bolts.some(b => b.alpha > 0)){
+      requestAnimationFrame(loop);
+    } else {
+      ctx.clearRect(0, 0, W, H);
+    }
   })();
 }
 
@@ -385,7 +393,7 @@ function launchTextBoom(){
     const scale = frame < 6 ? frame/6 : Math.min(1.08, 1+(frame-6)*0.003);
     const textAlpha = frame < 4 ? frame/4 : Math.max(0, 1-(frame-40)/50);
     if(textAlpha > 0){
-      const fontSize = Math.min(W*0.2, 110) * scale;
+      const fontSize = Math.min(W*0.13, 72) * scale;
       ctx.save();
       ctx.globalAlpha  = textAlpha;
       ctx.font         = `900 ${fontSize}px sans-serif`;
@@ -411,7 +419,7 @@ function launchTextBoom(){
 // ========================================
 function launchFlash(){
   const W = canvas.width, H = canvas.height;
-  const DARK_FRAMES = 8, HOLD_FRAMES = 6, FADE_FRAMES = 25;
+  const DARK_FRAMES = 14, HOLD_FRAMES = 18, FADE_FRAMES = 50;
 
   const lines = [];
   for(let i = 0; i < rndInt(2,4); i++){
