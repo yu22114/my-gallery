@@ -21,7 +21,7 @@ function rndInt(a,b){ return rnd(a,b)|0; }
 // ========================================
 // 1. ブラックホール（エグ版）
 // ========================================
-function launchBlackHole(){
+function launchBlackHole(done){
   const W = canvas.width, H = canvas.height;
   const cx = W/2, cy = H/2;
   const TOTAL = 160;
@@ -135,7 +135,7 @@ function launchBlackHole(){
       ctx.fillRect(0, 0, W, H);
     }
     if(frame === TOTAL - 1){
-      setTimeout(()=> ctx.clearRect(0,0,W,H), 200);
+      setTimeout(()=>{ ctx.clearRect(0,0,W,H); done?.(); }, 200);
     }
 
     frame++;
@@ -192,7 +192,7 @@ function drawBolt(segs, alpha, width, glowColor){
   });
 }
 
-function launchLightning(){
+function launchLightning(done){
   const W = canvas.width, H = canvas.height;
   const colors = [
     'rgba(150,200,255,1)',
@@ -250,6 +250,7 @@ function launchLightning(){
       requestAnimationFrame(loop);
     } else {
       ctx.clearRect(0, 0, W, H);
+      done?.();
     }
   })();
 }
@@ -273,7 +274,7 @@ function heartPath2(c,x,y,s){
   c.closePath();
 }
 
-function launchTextBoom(){
+function launchTextBoom(done){
   const W = canvas.width, H = canvas.height;
   const word = WORDS[rndInt(0, WORDS.length)];
   const cx = W/2, cy = H/2;
@@ -410,14 +411,14 @@ function launchTextBoom(){
 
     frame++;
     if(frame < TOTAL) requestAnimationFrame(loop);
-    else ctx.clearRect(0,0,W,H);
+    else { ctx.clearRect(0,0,W,H); done?.(); }
   })();
 }
 
 // ========================================
 // 4. 画面フラッシュ（黒→白い光がピキーん）
 // ========================================
-function launchFlash(){
+function launchFlash(done){
   const W = canvas.width, H = canvas.height;
   const DARK_FRAMES = 14, HOLD_FRAMES = 18, FADE_FRAMES = 50;
 
@@ -473,15 +474,26 @@ function launchFlash(){
 
     frame++;
     if(frame < total) requestAnimationFrame(flashLoop);
-    else ctx.clearRect(0, 0, W, H);
+    else { ctx.clearRect(0, 0, W, H); done?.(); }
   })();
 }
 
 // ---- ランダム発動 ----
 const effects = [launchBlackHole, launchLightning, launchTextBoom, launchFlash];
+let isPlaying = false;
+
+function setPlaying(val){
+  isPlaying = val;
+  document.querySelectorAll('.dl').forEach(a => {
+    a.style.pointerEvents = val ? 'none' : '';
+    a.style.opacity       = val ? '0.4'  : '';
+  });
+}
 
 document.querySelectorAll('.dl').forEach(a => {
   a.addEventListener('click', () => {
-    effects[rndInt(0, effects.length)]();
+    if(isPlaying) return;
+    setPlaying(true);
+    effects[rndInt(0, effects.length)](()=> setPlaying(false));
   });
 });
