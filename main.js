@@ -252,15 +252,19 @@ function launchLightning(done){
       bolt.alpha = Math.max(0, 1 - bolt.frame / 22);
       drawBolt(bolt.segs, bolt.alpha, bolt.width, bolt.color);
 
-      // 始点にコダック画像（四角・透明度50%・グロー付き）
-      if(kodakImg.complete && bolt.alpha > 0){
-        const s = 56;  // 一辺のサイズ
-        ctx.save();
-        ctx.globalAlpha = bolt.alpha;
-        ctx.shadowColor = bolt.color;
-        ctx.shadowBlur  = 20;
-        ctx.drawImage(kodakImg, bolt.imgX - s/2, bolt.imgY - s/2, s, s);
-        ctx.restore();
+      // 始点にコダック画像（bolt.alphaより長く残す・独立フェード）
+      if(kodakImg.complete){
+        const KODAK_LIFE = 55;  // 雷より長く表示
+        const ka = Math.max(0, 1 - bolt.frame / KODAK_LIFE);
+        if(ka > 0){
+          const s = 70;
+          ctx.save();
+          ctx.globalAlpha = ka;
+          ctx.shadowColor = bolt.color;
+          ctx.shadowBlur  = 24;
+          ctx.drawImage(kodakImg, bolt.imgX - s/2, bolt.imgY - s/2, s, s);
+          ctx.restore();
+        }
       }
 
       bolt.frame++;
@@ -426,12 +430,12 @@ function launchTextBoom(done){
     const textAlpha = frame < 4 ? frame/4 : Math.max(0, 1-(frame-40)/50);
     if(textAlpha > 0){
       const fontSize = Math.min(W*0.13, 72) * scale;
-      const imgSize  = fontSize * 3.5;
+      const imgSize  = fontSize * 5.5;
 
       // 文字の裏に薄いコダック
       if(kodakImg.complete){
         ctx.save();
-        ctx.globalAlpha = textAlpha * 0.5;
+        ctx.globalAlpha = textAlpha * 0.75;
         ctx.drawImage(kodakImg, cx - imgSize/2, cy - imgSize/2, imgSize, imgSize);
         ctx.restore();
       }
@@ -460,14 +464,14 @@ function launchTextBoom(done){
 // ========================================
 function launchFlash(done){
   const W = canvas.width, H = canvas.height;
-  const DARK_FRAMES = 14, HOLD_FRAMES = 18, FADE_FRAMES = 50;
+  const DARK_FRAMES = 14, HOLD_FRAMES = 18, FADE_FRAMES = 90;
 
   const lines = [];
   for(let i = 0; i < rndInt(2,4); i++){
-    lines.push({ y:H*rnd(0.1,0.9), x:-250, halfW:rnd(80,200), speed:rnd(15,32), thickness:rnd(2,8) });
+    lines.push({ y:H*rnd(0.1,0.9), x:-250, halfW:rnd(80,200), speed:rnd(6,14), thickness:rnd(2,8) });
   }
-  // 主役のコダックラインはゆっくり目
-  lines.push({ y:H*rnd(0.3,0.7), x:-500, halfW:rnd(280,500), speed:rnd(40,65), thickness:rnd(12,26) });
+  // 主役のコダックラインはめちゃゆっくり
+  lines.push({ y:H*rnd(0.3,0.7), x:-500, halfW:rnd(280,500), speed:rnd(16,26), thickness:rnd(12,26) });
 
   let frame = 0;
   const total = DARK_FRAMES + HOLD_FRAMES + FADE_FRAMES + 40;
