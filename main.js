@@ -214,63 +214,78 @@ function launchBubbles(){
 
 // ========== 6. 画面フラッシュ（黒→白い光がピキーん） ==========
 function launchFlash(){
-  // 画面を黒く
-  overlay.style.transition='opacity 0s';
-  overlay.style.opacity='1';
+  // 画面を瞬時に黒く
+  overlay.style.transition = 'opacity 0s';
+  overlay.style.opacity = '1';
 
   setTimeout(()=>{
-    overlay.style.transition='opacity 0.15s';
-    overlay.style.opacity='0';
+    // 黒をフェードアウト
+    overlay.style.transition = 'opacity 0.2s';
+    overlay.style.opacity = '0';
 
-    // 白い光の線を複数Canvas上で走らせる
-    const lines=[];
-    const lineCount = rndInt(2,5);
-    for(let i=0;i<lineCount;i++){
+    // 光の線を定義（全部 rgba で統一）
+    const lines = [];
+    const lineCount = rndInt(2, 4);
+    for(let i = 0; i < lineCount; i++){
       lines.push({
-        y: canvas.height*rnd(0.2,0.8),
-        x: -200,
-        width: rnd(60,200),
-        speed: rnd(40,80),
-        alpha: rnd(0.7,1),
-        thickness: rnd(2,12),
-        color: `hsl(${rndInt(180,240)},100%,95%)`,
+        y: canvas.height * rnd(0.15, 0.85),
+        x: -300,
+        halfW: rnd(80, 220),
+        speed: rnd(35, 70),
+        baseAlpha: rnd(0.6, 0.9),
+        thickness: rnd(2, 10),
+        r: 200, g: 220, b: 255,   // 青白い
       });
     }
-    // 必ず1本は純白の太いやつ
-    lines.push({ y:canvas.height*rnd(0.3,0.7), x:-400, width:rnd(200,400), speed:rnd(80,120), alpha:1, thickness:rnd(8,20), color:'#ffffff' });
+    // 主役：純白の太い1本
+    lines.push({
+      y: canvas.height * rnd(0.3, 0.7),
+      x: -400,
+      halfW: rnd(250, 450),
+      speed: rnd(90, 130),
+      baseAlpha: 1,
+      thickness: rnd(10, 24),
+      r: 255, g: 255, b: 255,
+    });
 
-    let frame=0;
-    const maxFrames=30;
+    let frame = 0;
     (function flashLoop(){
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      let alive=false;
-      lines.forEach(l=>{
-        l.x+=l.speed;
-        if(l.x<canvas.width+l.width){
-          alive=true;
-          // 光の中心
-          const grad=ctx.createLinearGradient(l.x-l.width,0,l.x+l.width,0);
-          grad.addColorStop(0,'transparent');
-          grad.addColorStop(0.3,l.color.replace(')',`,${l.alpha*0.3})`).replace('hsl','hsla').replace('#ffffff',`rgba(255,255,255,${l.alpha*0.3})`));
-          grad.addColorStop(0.5,l.color);
-          grad.addColorStop(0.7,l.color.replace(')',`,${l.alpha*0.3})`).replace('hsl','hsla').replace('#ffffff',`rgba(255,255,255,${l.alpha*0.3})`));
-          grad.addColorStop(1,'transparent');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+      const fade = Math.max(0, 1 - frame / 40);
+
+      lines.forEach(l => {
+        l.x += l.speed;
+        if(l.x < canvas.width + l.halfW){
+          alive = true;
+          const a = l.baseAlpha * fade;
+          const {r,g,b} = l;
+
+          // グロー（幅広い光の帯）
+          const grad = ctx.createLinearGradient(l.x - l.halfW, 0, l.x + l.halfW, 0);
+          grad.addColorStop(0,   `rgba(${r},${g},${b},0)`);
+          grad.addColorStop(0.3, `rgba(${r},${g},${b},${(a*0.25).toFixed(3)})`);
+          grad.addColorStop(0.5, `rgba(${r},${g},${b},${a.toFixed(3)})`);
+          grad.addColorStop(0.7, `rgba(${r},${g},${b},${(a*0.25).toFixed(3)})`);
+          grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+
           ctx.save();
-          ctx.globalAlpha=l.alpha*(1-frame/maxFrames);
-          // グロー
-          ctx.shadowColor=l.color; ctx.shadowBlur=40;
-          ctx.fillStyle=grad;
-          ctx.fillRect(l.x-l.width, l.y-l.thickness*3, l.width*2, l.thickness*6);
-          // 中心線
-          ctx.shadowBlur=0;
-          ctx.fillStyle=l.color;
-          ctx.fillRect(l.x-l.width, l.y-l.thickness/2, l.width*2, l.thickness);
+          ctx.shadowColor = `rgba(${r},${g},${b},${a.toFixed(3)})`;
+          ctx.shadowBlur  = 50;
+          ctx.fillStyle   = grad;
+          ctx.fillRect(l.x - l.halfW, l.y - l.thickness * 4, l.halfW * 2, l.thickness * 8);
+
+          // 中心の鋭い線
+          ctx.shadowBlur  = 0;
+          ctx.fillStyle   = `rgba(${r},${g},${b},${a.toFixed(3)})`;
+          ctx.fillRect(l.x - l.halfW, l.y - l.thickness / 2, l.halfW * 2, l.thickness);
           ctx.restore();
         }
       });
+
       frame++;
-      if(alive&&frame<60) requestAnimationFrame(flashLoop);
-      else ctx.clearRect(0,0,canvas.width,canvas.height);
+      if(alive && frame < 60) requestAnimationFrame(flashLoop);
+      else ctx.clearRect(0, 0, canvas.width, canvas.height);
     })();
   }, 80);
 }
