@@ -247,87 +247,162 @@ function launchLightning(){
 }
 
 // ========================================
-// 3. NICE!! テキスト爆発
+// 3. NICE!! テキスト爆発（全部乗せ版）
 // ========================================
-const WORDS = ['NICE!!', 'YOOO!!', 'GJ!!', 'FIRE🔥', 'LET\'S GO!!', 'BASED!!', 'W!!!'];
+const WORDS = [
+  'NICE!!', 'YOOO!!', 'GJ!!', 'FIRE🔥', "LET'S GO!!",
+  'さいこう！！', 'ありがとう！！', 'うれしい〜！！',
+  'やばすぎ！！', 'まじか〜！！', '神！！', 'つよすぎ！！',
+];
+
+function heartPath2(c,x,y,s){
+  c.beginPath();
+  c.moveTo(x,y+s*0.3);
+  c.bezierCurveTo(x,y,x-s*0.5,y,x-s*0.5,y+s*0.3);
+  c.bezierCurveTo(x-s*0.5,y+s*0.65,x,y+s*0.9,x,y+s*1.1);
+  c.bezierCurveTo(x,y+s*0.9,x+s*0.5,y+s*0.65,x+s*0.5,y+s*0.3);
+  c.bezierCurveTo(x+s*0.5,y,x,y,x,y+s*0.3);
+  c.closePath();
+}
 
 function launchTextBoom(){
   const W = canvas.width, H = canvas.height;
-  const word  = WORDS[rndInt(0, WORDS.length)];
+  const word = WORDS[rndInt(0, WORDS.length)];
   const cx = W/2, cy = H/2;
 
   // 衝撃波リング
   const rings = [
-    { r:0, speed:18, alpha:1, color:'255,255,255' },
-    { r:0, speed:12, alpha:0.7, color:'255,200,50' },
+    { r:0, speed:20, alpha:1,   color:'255,255,255' },
+    { r:0, speed:13, alpha:0.8, color:'255,200,50'  },
+    { r:0, speed:8,  alpha:0.6, color:'255,100,200' },
   ];
 
   // スパーク
-  const sparks = Array.from({length:60}, () => {
-    const a = rnd(0, Math.PI*2), s = rnd(8,22);
-    return { x:cx, y:cy, vx:Math.cos(a)*s, vy:Math.sin(a)*s, alpha:1, size:rnd(2,6), hue:rndInt(30,60) };
+  const sparks = Array.from({length:80}, () => {
+    const a = rnd(0,Math.PI*2), s = rnd(8,25);
+    return { x:cx, y:cy, vx:Math.cos(a)*s, vy:Math.sin(a)*s, alpha:1, size:rnd(2,7), hue:rndInt(0,360) };
+  });
+
+  // 花びら（紙吹雪）
+  const petals = Array.from({length:200}, () => ({
+    x:rnd(0,W), y:-20,
+    vx:rnd(-3,3), vy:rnd(3,9),
+    rot:rnd(0,Math.PI*2), rotV:rnd(-0.2,0.2),
+    w:rnd(6,16), h:rnd(4,10),
+    alpha:1, color:`hsl(${rndInt(0,360)},100%,65%)`,
+    wobble:rnd(0,Math.PI*2), wobbleSpd:rnd(0.05,0.15),
+    born: rndInt(0,20),
+  }));
+
+  // ハート
+  const hearts = Array.from({length:40}, () => {
+    const hColors = ['#ff1493','#ff69b4','#ff6b9d','#ff0066','#ffb3d9','#ff4da6'];
+    return {
+      x:rnd(0,W), y:H+rnd(0,80),
+      vx:rnd(-2,2), vy:rnd(-6,-12),
+      alpha:1, size:rnd(20,55),
+      color:hColors[rndInt(0,hColors.length)],
+      wobble:rnd(0,Math.PI*2), wobbleSpd:rnd(0.04,0.1),
+      born: rndInt(0,30),
+    };
+  });
+
+  // 花火パーティクル
+  const fireParticles = [];
+  [[0.2,0.25],[0.8,0.25],[0.5,0.15],[0.15,0.5],[0.85,0.5]].forEach(([fx,fy],i) => {
+    const bx = W*fx, by = H*fy, color = `hsl(${rndInt(0,360)},100%,65%)`;
+    const n = 80;
+    for(let j=0;j<n;j++){
+      const a=rnd(0,Math.PI*2), spd=rnd(3,12);
+      fireParticles.push({
+        x:bx, y:by, vx:Math.cos(a)*spd, vy:Math.sin(a)*spd,
+        alpha:1, color, size:rnd(2,6),
+        grav:rnd(0.06,0.12), decay:rnd(0.008,0.018),
+        born: i * 12,
+      });
+    }
   });
 
   let frame = 0;
-  const TOTAL = 70;
+  const TOTAL = 130;
 
   (function loop(){
     ctx.clearRect(0, 0, W, H);
-    const t = frame / TOTAL;
 
-    // テキスト
-    const scale = frame < 8 ? frame/8 : 1 + (frame-8)*0.005;
-    const textAlpha = frame < 5 ? frame/5 : Math.max(0, 1 - (frame-5)/35);
-    if(textAlpha > 0){
-      const size = Math.min(W*0.22, 120) * scale;
-      ctx.save();
-      ctx.globalAlpha  = textAlpha;
-      ctx.font         = `900 ${size}px sans-serif`;
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle    = '#fff';
-      ctx.shadowColor  = '#ffdd00';
-      ctx.shadowBlur   = 40;
-      ctx.fillText(word, cx, cy);
-      ctx.shadowBlur   = 0;
-      ctx.strokeStyle  = '#ffaa00';
-      ctx.lineWidth    = size * 0.04;
-      ctx.strokeText(word, cx, cy);
-      ctx.restore();
-    }
+    // 花火
+    fireParticles.forEach(p => {
+      if(frame < p.born) return;
+      p.x+=p.vx; p.y+=p.vy; p.vy+=p.grav; p.vx*=0.97; p.alpha-=p.decay;
+      if(p.alpha<=0) return;
+      ctx.globalAlpha=p.alpha; ctx.fillStyle=p.color;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+    });
+
+    // 紙吹雪
+    petals.forEach(p => {
+      if(frame < p.born) return;
+      p.wobble+=p.wobbleSpd; p.x+=p.vx+Math.sin(p.wobble)*1.5; p.y+=p.vy; p.rot+=p.rotV;
+      if(p.y > H*0.7) p.alpha -= 0.015;
+      if(p.alpha<=0) return;
+      ctx.save(); ctx.globalAlpha=p.alpha; ctx.fillStyle=p.color;
+      ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore();
+    });
+
+    // ハート
+    hearts.forEach(h => {
+      if(frame < h.born) return;
+      h.wobble+=h.wobbleSpd; h.x+=h.vx+Math.sin(h.wobble)*1.2; h.y+=h.vy; h.vy*=0.995; h.alpha-=0.007;
+      if(h.alpha<=0) return;
+      ctx.save(); ctx.globalAlpha=h.alpha; ctx.fillStyle=h.color;
+      ctx.shadowColor=h.color; ctx.shadowBlur=15;
+      heartPath2(ctx, h.x-h.size/2, h.y-h.size/2, h.size);
+      ctx.fill(); ctx.restore();
+    });
 
     // 衝撃波
     rings.forEach(ring => {
-      ring.r += ring.speed;
-      ring.alpha = Math.max(0, ring.alpha - 0.04);
-      if(ring.alpha > 0){
-        ctx.save();
-        ctx.globalAlpha  = ring.alpha;
-        ctx.strokeStyle  = `rgba(${ring.color},1)`;
-        ctx.lineWidth    = Math.max(1, 8*(1-ring.r/(W*0.8)));
-        ctx.shadowColor  = `rgba(${ring.color},0.8)`;
-        ctx.shadowBlur   = 20;
-        ctx.beginPath(); ctx.arc(cx, cy, ring.r, 0, Math.PI*2); ctx.stroke();
-        ctx.restore();
-      }
+      ring.r += ring.speed; ring.alpha = Math.max(0, ring.alpha-0.035);
+      if(ring.alpha<=0) return;
+      ctx.save(); ctx.globalAlpha=ring.alpha;
+      ctx.strokeStyle=`rgba(${ring.color},1)`;
+      ctx.lineWidth=Math.max(1, 10*(1-ring.r/(W*0.9)));
+      ctx.shadowColor=`rgba(${ring.color},0.8)`; ctx.shadowBlur=25;
+      ctx.beginPath(); ctx.arc(cx,cy,ring.r,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
     });
 
     // スパーク
     sparks.forEach(s => {
-      s.x += s.vx; s.y += s.vy;
-      s.vx *= 0.95; s.vy *= 0.95; s.vy += 0.3;
-      s.alpha -= 0.022;
-      if(s.alpha > 0){
-        ctx.globalAlpha = s.alpha;
-        ctx.fillStyle   = `hsl(${s.hue},100%,65%)`;
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
-      }
+      s.x+=s.vx; s.y+=s.vy; s.vx*=0.94; s.vy*=0.94; s.vy+=0.35; s.alpha-=0.018;
+      if(s.alpha<=0) return;
+      ctx.globalAlpha=s.alpha; ctx.fillStyle=`hsl(${s.hue},100%,65%)`;
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.size,0,Math.PI*2); ctx.fill();
     });
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha=1;
+
+    // テキスト（中央・ドーンと出て残る）
+    const scale = frame < 6 ? frame/6 : Math.min(1.08, 1+(frame-6)*0.003);
+    const textAlpha = frame < 4 ? frame/4 : Math.max(0, 1-(frame-40)/50);
+    if(textAlpha > 0){
+      const fontSize = Math.min(W*0.2, 110) * scale;
+      ctx.save();
+      ctx.globalAlpha  = textAlpha;
+      ctx.font         = `900 ${fontSize}px sans-serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      // 影を何重にも重ねてギラギラに
+      ctx.shadowColor='#ff00ff'; ctx.shadowBlur=60; ctx.fillStyle='#fff'; ctx.fillText(word,cx,cy);
+      ctx.shadowColor='#ffdd00'; ctx.shadowBlur=40; ctx.fillText(word,cx,cy);
+      ctx.shadowColor='#ffffff'; ctx.shadowBlur=20; ctx.fillText(word,cx,cy);
+      ctx.shadowBlur=0;
+      ctx.strokeStyle='#ff8800'; ctx.lineWidth=fontSize*0.045; ctx.strokeText(word,cx,cy);
+      ctx.restore();
+    }
 
     frame++;
     if(frame < TOTAL) requestAnimationFrame(loop);
-    else ctx.clearRect(0, 0, W, H);
+    else ctx.clearRect(0,0,W,H);
   })();
 }
 
