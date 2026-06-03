@@ -671,11 +671,13 @@ document.querySelectorAll('.dl').forEach(a => {
       triggerDownload(src, filename);
     }, 15000);
 
+    // ダウンロードはエフェクトと同時に発火
+    triggerDownload(src, filename);
+
     const done = () => {
       clearTimeout(safetyTimer);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       setPlaying(false);
-      triggerDownload(src, filename);
     };
 
     const r = Math.random();
