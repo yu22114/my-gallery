@@ -655,20 +655,27 @@ function setPlaying(val){
 }
 
 document.querySelectorAll('.dl').forEach(a => {
-  a.addEventListener('click', () => {
+  a.addEventListener('click', (e) => {
+    e.preventDefault();  // ブラウザのダウンロード/プレビューを先に止める
+
     if(isPlaying) return;
     setPlaying(true);
 
-    // 最大15秒で強制終了（アプリ内ブラウザ対策）
+    const href = a.href;
+    const filename = a.getAttribute('download') || 'image';
+
+    // 最大15秒で強制終了
     const safetyTimer = setTimeout(() => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       setPlaying(false);
+      triggerDownload(href, filename);
     }, 15000);
 
     const done = () => {
       clearTimeout(safetyTimer);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       setPlaying(false);
+      triggerDownload(href, filename);
     };
 
     const r = Math.random();
@@ -678,3 +685,10 @@ document.querySelectorAll('.dl').forEach(a => {
     fn(done);
   });
 });
+
+function triggerDownload(href, filename){
+  const a = document.createElement('a');
+  a.href     = href;
+  a.download = filename;
+  a.click();
+}
