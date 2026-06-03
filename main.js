@@ -499,23 +499,22 @@ function launchFlash(done){
 // ========================================
 function launchRareOrbit(done){
   const W = canvas.width, H = canvas.height;
-  const imgSize = Math.min(W, H) * 0.22;
-  const pad     = imgSize * 0.1;   // 画面端からの余白
-  const speed   = 4;               // px/frame
+  const s   = Math.min(W, H) * 0.22;   // 画像サイズ
+  const m   = s * 0.5;                  // 画面端からの余白（画像半分＝はみ出さない）
 
-  // 外周の4辺をパスとして定義（左上→右上→右下→左下→左上）
-  const path = [
-    { x1: -imgSize,     y1: pad,          x2: W + imgSize, y2: pad,          axis:'x' },  // 上
-    { x1: W - pad,      y1: -imgSize,     x2: W - pad,     y2: H + imgSize,  axis:'y' },  // 右
-    { x1: W + imgSize,  y1: H - pad,      x2: -imgSize,    y2: H - pad,      axis:'x' },  // 下
-    { x1: pad,          y1: H + imgSize,  x2: pad,         y2: -imgSize,     axis:'y' },  // 左
+  // 画像の中心が通るウェイポイント（左上→右上→右下→左下→左上で一周）
+  const pts = [
+    { x: m,   y: m   },   // 左上
+    { x: W-m, y: m   },   // 右上
+    { x: W-m, y: H-m },   // 右下
+    { x: m,   y: H-m },   // 左下
+    { x: m,   y: m   },   // 左上（一周して戻る）
   ];
 
+  const speed = 3;   // px/frame
   let seg = 0;
-  let t   = 0;   // 0〜1 で各辺の進捗
-
-  // テキスト
-  const label = '★ RARE ★';
+  let cx  = pts[0].x;
+  let cy  = pts[0].y;
 
   (function loop(){
     ctx.clearRect(0, 0, W, H);
@@ -524,7 +523,7 @@ function launchRareOrbit(done){
     ctx.fillStyle = 'rgba(0,0,0,0.82)';
     ctx.fillRect(0, 0, W, H);
 
-    // RARE テキスト（中央）
+    // ★ RARE ★
     ctx.save();
     ctx.font         = `900 ${Math.min(W*0.1, 52)}px sans-serif`;
     ctx.textAlign    = 'center';
@@ -532,41 +531,43 @@ function launchRareOrbit(done){
     ctx.fillStyle    = '#ffd700';
     ctx.shadowColor  = '#ff8800';
     ctx.shadowBlur   = 30;
-    ctx.fillText(label, W/2, H/2);
+    ctx.fillText('★ RARE ★', W/2, H/2);
     ctx.restore();
 
-    // 現在の辺を補間して座標を計算
-    const s = path[seg];
-    const x = s.x1 + (s.x2 - s.x1) * t;
-    const y = s.y1 + (s.y2 - s.y1) * t;
+    // ルート点線
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,215,0,0.35)';
+    ctx.lineWidth   = 2;
+    ctx.setLineDash([6, 8]);
+    ctx.strokeRect(m, m, W - m*2, H - m*2);
+    ctx.restore();
 
     // コダック
     ctx.save();
     ctx.shadowColor = '#ffd700';
     ctx.shadowBlur  = 25;
-    ctx.drawImage(kodakImg, x - imgSize/2, y - imgSize/2, imgSize, imgSize);
+    ctx.drawImage(kodakImg, cx - s/2, cy - s/2, s, s);
     ctx.restore();
 
-    // 軌跡（金色の点線）
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,215,0,0.3)';
-    ctx.lineWidth   = 2;
-    ctx.setLineDash([6, 8]);
-    ctx.strokeRect(pad, pad, W - pad*2, H - pad*2);
-    ctx.restore();
+    // 次のウェイポイントへ向かって進む
+    const target = pts[seg + 1];
+    const dx = target.x - cx;
+    const dy = target.y - cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
 
-    // 進める
-    const segLen = s.axis === 'x' ? Math.abs(s.x2 - s.x1) : Math.abs(s.y2 - s.y1);
-    t += speed / segLen;
-    if(t >= 1){
-      t = 0;
+    if(dist <= speed){
+      // ウェイポイントに到達 → ぴったり合わせて次のセグメントへ
+      cx = target.x;
+      cy = target.y;
       seg++;
-      if(seg >= path.length){
-        // 一周完了
+      if(seg >= pts.length - 1){
         ctx.clearRect(0, 0, W, H);
         done?.();
         return;
       }
+    } else {
+      cx += (dx / dist) * speed;
+      cy += (dy / dist) * speed;
     }
 
     requestAnimationFrame(loop);
