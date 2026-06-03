@@ -214,80 +214,73 @@ function launchBubbles(){
 
 // ========== 6. 画面フラッシュ（黒→白い光がピキーん） ==========
 function launchFlash(){
-  // 画面を瞬時に黒く
-  overlay.style.transition = 'opacity 0s';
-  overlay.style.opacity = '1';
+  const W = canvas.width, H = canvas.height;
+  const DARK_FRAMES  = 8;   // 暗くなるフレーム数
+  const HOLD_FRAMES  = 6;   // 暗いまま維持
+  const FADE_FRAMES  = 25;  // 明るさが戻るフレーム数
 
-  setTimeout(()=>{
-    // 黒をフェードアウト
-    overlay.style.transition = 'opacity 0.2s';
-    overlay.style.opacity = '0';
+  // 光の線
+  const lines = [];
+  for(let i = 0; i < rndInt(2,4); i++){
+    lines.push({ y:H*rnd(0.1,0.9), x:-250, halfW:rnd(80,200), speed:rnd(30,65), thickness:rnd(2,8) });
+  }
+  lines.push({ y:H*rnd(0.3,0.7), x:-500, halfW:rnd(280,500), speed:rnd(85,130), thickness:rnd(12,26) });
 
-    // 光の線を定義（全部 rgba で統一）
-    const lines = [];
-    const lineCount = rndInt(2, 4);
-    for(let i = 0; i < lineCount; i++){
-      lines.push({
-        y: canvas.height * rnd(0.15, 0.85),
-        x: -300,
-        halfW: rnd(80, 220),
-        speed: rnd(35, 70),
-        baseAlpha: rnd(0.6, 0.9),
-        thickness: rnd(2, 10),
-        r: 200, g: 220, b: 255,   // 青白い
-      });
+  let frame = 0;
+  const total = DARK_FRAMES + HOLD_FRAMES + FADE_FRAMES + 40;
+
+  (function flashLoop(){
+    ctx.clearRect(0, 0, W, H);
+
+    // --- 暗幕アルファを計算 ---
+    let darkAlpha = 0;
+    if(frame < DARK_FRAMES){
+      darkAlpha = frame / DARK_FRAMES;                          // 0→1
+    } else if(frame < DARK_FRAMES + HOLD_FRAMES){
+      darkAlpha = 1;                                            // 真っ暗
+    } else {
+      const t = frame - DARK_FRAMES - HOLD_FRAMES;
+      darkAlpha = Math.max(0, 1 - t / FADE_FRAMES);            // 1→0
     }
-    // 主役：純白の太い1本
-    lines.push({
-      y: canvas.height * rnd(0.3, 0.7),
-      x: -400,
-      halfW: rnd(250, 450),
-      speed: rnd(90, 130),
-      baseAlpha: 1,
-      thickness: rnd(10, 24),
-      r: 255, g: 255, b: 255,
-    });
 
-    let frame = 0;
-    (function flashLoop(){
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      let alive = false;
-      const fade = Math.max(0, 1 - frame / 40);
+    // 暗幕を描く
+    if(darkAlpha > 0){
+      ctx.fillStyle = `rgba(0,0,0,${darkAlpha.toFixed(3)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
 
+    // --- 光の線（暗幕が消え始めるタイミングで走る）---
+    const lineStart = DARK_FRAMES + HOLD_FRAMES - 4;
+    if(frame >= lineStart){
+      const lineFade = Math.max(0, 1 - (frame - lineStart) / 35);
       lines.forEach(l => {
         l.x += l.speed;
-        if(l.x < canvas.width + l.halfW){
-          alive = true;
-          const a = l.baseAlpha * fade;
-          const {r,g,b} = l;
-
-          // グロー（幅広い光の帯）
+        if(l.x < W + l.halfW){
+          const a = lineFade;
           const grad = ctx.createLinearGradient(l.x - l.halfW, 0, l.x + l.halfW, 0);
-          grad.addColorStop(0,   `rgba(${r},${g},${b},0)`);
-          grad.addColorStop(0.3, `rgba(${r},${g},${b},${(a*0.25).toFixed(3)})`);
-          grad.addColorStop(0.5, `rgba(${r},${g},${b},${a.toFixed(3)})`);
-          grad.addColorStop(0.7, `rgba(${r},${g},${b},${(a*0.25).toFixed(3)})`);
-          grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+          grad.addColorStop(0,    `rgba(255,255,255,0)`);
+          grad.addColorStop(0.35, `rgba(255,255,255,${(a*0.3).toFixed(3)})`);
+          grad.addColorStop(0.5,  `rgba(255,255,255,${a.toFixed(3)})`);
+          grad.addColorStop(0.65, `rgba(255,255,255,${(a*0.3).toFixed(3)})`);
+          grad.addColorStop(1,    `rgba(255,255,255,0)`);
 
           ctx.save();
-          ctx.shadowColor = `rgba(${r},${g},${b},${a.toFixed(3)})`;
-          ctx.shadowBlur  = 50;
+          ctx.shadowColor = `rgba(255,255,255,${a.toFixed(3)})`;
+          ctx.shadowBlur  = 60;
           ctx.fillStyle   = grad;
-          ctx.fillRect(l.x - l.halfW, l.y - l.thickness * 4, l.halfW * 2, l.thickness * 8);
-
-          // 中心の鋭い線
+          ctx.fillRect(l.x - l.halfW, l.y - l.thickness*5, l.halfW*2, l.thickness*10);
           ctx.shadowBlur  = 0;
-          ctx.fillStyle   = `rgba(${r},${g},${b},${a.toFixed(3)})`;
-          ctx.fillRect(l.x - l.halfW, l.y - l.thickness / 2, l.halfW * 2, l.thickness);
+          ctx.fillStyle   = `rgba(255,255,255,${a.toFixed(3)})`;
+          ctx.fillRect(l.x - l.halfW, l.y - l.thickness/2, l.halfW*2, l.thickness);
           ctx.restore();
         }
       });
+    }
 
-      frame++;
-      if(alive && frame < 60) requestAnimationFrame(flashLoop);
-      else ctx.clearRect(0, 0, canvas.width, canvas.height);
-    })();
-  }, 80);
+    frame++;
+    if(frame < total) requestAnimationFrame(flashLoop);
+    else ctx.clearRect(0, 0, W, H);
+  })();
 }
 
 // ---- ランダム発動（フラッシュは毎回追加で走る） ----
