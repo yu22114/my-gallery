@@ -474,7 +474,7 @@ function launchFlash(done){
   lines.push({ y:H*rnd(0.3,0.7), x:-500, halfW:rnd(280,500), speed:rnd(16,26), thickness:rnd(12,26) });
 
   let frame = 0;
-  const total = DARK_FRAMES + HOLD_FRAMES + FADE_FRAMES + 40;
+  const total = DARK_FRAMES + HOLD_FRAMES + FADE_FRAMES + 200;
 
   (function flashLoop(){
     ctx.clearRect(0, 0, W, H);
@@ -493,32 +493,35 @@ function launchFlash(done){
 
     const lineStart = DARK_FRAMES + HOLD_FRAMES - 4;
     if(frame >= lineStart){
-      const lineFade = Math.max(0, 1 - (frame - lineStart) / 35);
       lines.forEach(l => {
         l.x += l.speed;
-        if(l.x < W + l.halfW){
-          const a = lineFade;
+        // 右端を完全に抜けるまで描画
+        if(l.x < W + l.halfW + 200){
+          // 右端に近づいたらフェード、それ以外は1.0
+          const exitFade = l.x > W - l.halfW
+            ? Math.max(0, 1 - (l.x - (W - l.halfW)) / (l.halfW + 200))
+            : 1;
 
           // グロー帯（白い光）
           const grad = ctx.createLinearGradient(l.x-l.halfW,0,l.x+l.halfW,0);
           grad.addColorStop(0,    'rgba(255,255,255,0)');
-          grad.addColorStop(0.35, `rgba(255,255,255,${(a*0.3).toFixed(3)})`);
-          grad.addColorStop(0.5,  `rgba(255,255,255,${a.toFixed(3)})`);
-          grad.addColorStop(0.65, `rgba(255,255,255,${(a*0.3).toFixed(3)})`);
+          grad.addColorStop(0.35, `rgba(255,255,255,${(exitFade*0.3).toFixed(3)})`);
+          grad.addColorStop(0.5,  `rgba(255,255,255,${exitFade.toFixed(3)})`);
+          grad.addColorStop(0.65, `rgba(255,255,255,${(exitFade*0.3).toFixed(3)})`);
           grad.addColorStop(1,    'rgba(255,255,255,0)');
           ctx.save();
-          ctx.shadowColor = `rgba(255,255,255,${a.toFixed(3)})`;
+          ctx.shadowColor = `rgba(255,255,255,${exitFade.toFixed(3)})`;
           ctx.shadowBlur  = 60;
           ctx.fillStyle   = grad;
           ctx.fillRect(l.x-l.halfW, l.y-l.thickness*5, l.halfW*2, l.thickness*10);
           ctx.restore();
 
-          // コダック画像が光と一緒に走る
+          // コダック画像が右端まで走りきる
           if(kodakImg.complete){
             const imgH = l.thickness * 12;
             const imgW = imgH * (kodakImg.naturalWidth / kodakImg.naturalHeight || 1);
             ctx.save();
-            ctx.globalAlpha = a * 0.9;
+            ctx.globalAlpha = exitFade * 0.9;
             ctx.shadowColor = 'rgba(255,255,255,0.8)';
             ctx.shadowBlur  = 30;
             ctx.drawImage(kodakImg, l.x - imgW/2, l.y - imgH/2, imgW, imgH);
