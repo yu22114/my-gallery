@@ -19,64 +19,127 @@ function rnd(a,b){ return a + Math.random()*(b-a); }
 function rndInt(a,b){ return rnd(a,b)|0; }
 
 // ========================================
-// 1. ブラックホール
+// 1. ブラックホール（エグ版）
 // ========================================
 function launchBlackHole(){
   const W = canvas.width, H = canvas.height;
   const cx = W/2, cy = H/2;
-  const TOTAL = 120;
+  const TOTAL = 160;
 
-  // パーティクルを画面全体にばら撒く
-  const pts = Array.from({length: 300}, () => ({
-    x: rnd(0, W),
-    y: rnd(0, H),
-    angle: Math.atan2(rnd(0,H)-cy, rnd(0,W)-cx),
-    dist: rnd(80, Math.max(W,H)*0.7),
-    speed: rnd(0.01, 0.03),
-    size: rnd(2, 6),
-    hue: rndInt(200, 320),
-    alpha: 1,
-  }));
-  pts.forEach(p => {
-    p.x = cx + Math.cos(p.angle) * p.dist;
-    p.y = cy + Math.sin(p.angle) * p.dist;
+  // パーティクル大量生成（画面端からも）
+  const pts = Array.from({length: 500}, (_, i) => {
+    const angle = rnd(0, Math.PI*2);
+    const dist  = rnd(100, Math.max(W,H)*0.85);
+    return {
+      x: cx + Math.cos(angle)*dist,
+      y: cy + Math.sin(angle)*dist,
+      angle, dist,
+      orbitSpeed: rnd(0.008, 0.025) * (Math.random()<0.5?1:-1),
+      size: rnd(2, 7),
+      hue: rndInt(180, 360),
+      alpha: 1,
+      prevX: 0, prevY: 0,
+    };
   });
 
   let frame = 0;
-  (function loop(){
-    ctx.clearRect(0, 0, W, H);
+  let shakeX = 0, shakeY = 0;
 
-    // 中心の黒い穴
-    const holeR = Math.min(frame * 1.5, 60);
-    if(holeR > 0){
-      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, holeR * 2.5);
-      g.addColorStop(0,   'rgba(0,0,0,0.95)');
-      g.addColorStop(0.4, 'rgba(0,0,0,0.6)');
-      g.addColorStop(1,   'rgba(0,0,0,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(cx, cy, holeR * 2.5, 0, Math.PI*2); ctx.fill();
+  (function loop(){
+    // 画面揺れ（後半に強くなる）
+    const shakeMag = Math.max(0, (frame - 60) / 100) * 14;
+    shakeX = rnd(-shakeMag, shakeMag);
+    shakeY = rnd(-shakeMag, shakeMag);
+
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
+    ctx.clearRect(-20, -20, W+40, H+40);
+
+    // 背景を少しずつ暗くする
+    const bgDark = Math.min(0.85, frame / TOTAL * 1.1);
+    ctx.fillStyle = `rgba(0,0,0,${(bgDark * 0.18).toFixed(3)})`;
+    ctx.fillRect(-20, -20, W+40, H+40);
+
+    const holeR = Math.min(frame * 2, 90);
+
+    // 降着円盤（回転するグロー）
+    if(holeR > 10){
+      for(let i = 0; i < 3; i++){
+        const diskR = holeR * (1.5 + i * 0.8);
+        const diskG = ctx.createRadialGradient(cx, cy, holeR*0.8, cx, cy, diskR);
+        const hue = (frame * 3 + i*40) % 360;
+        diskG.addColorStop(0,   `hsla(${hue},100%,80%,0.5)`);
+        diskG.addColorStop(0.5, `hsla(${hue+30},100%,60%,0.15)`);
+        diskG.addColorStop(1,   `hsla(${hue+60},100%,40%,0)`);
+        ctx.fillStyle = diskG;
+        ctx.beginPath(); ctx.arc(cx, cy, diskR, 0, Math.PI*2); ctx.fill();
+      }
     }
 
+    // パーティクル（スパゲッティ化：引き伸ばして描く）
     pts.forEach(p => {
-      const pull = Math.max(0.02, 1 - p.dist / 600);
-      p.speed += pull * 0.004;
-      p.angle += p.speed;
-      p.dist  *= (1 - pull * 0.04);
+      p.prevX = p.x; p.prevY = p.y;
+
+      const pull = Math.pow(Math.max(0.01, 1 - p.dist / 500), 2) * 0.12 + 0.002;
+      p.orbitSpeed += pull * 0.006 * Math.sign(p.orbitSpeed);
+      p.angle += p.orbitSpeed;
+      p.dist  *= (1 - pull * 0.055);
       p.x = cx + Math.cos(p.angle) * p.dist;
       p.y = cy + Math.sin(p.angle) * p.dist;
-      if(p.dist < 5) p.alpha -= 0.1;
 
-      ctx.globalAlpha = Math.max(0, p.alpha);
-      ctx.fillStyle = `hsl(${p.hue},100%,70%)`;
+      if(p.dist < 8){ p.alpha -= 0.15; }
+
+      if(p.alpha <= 0) return;
+
+      // 距離に応じて引き伸ばす（スパゲッティ化）
+      const stretch = Math.max(1, (300 - p.dist) / 30);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, p.alpha * (p.dist / 80 + 0.3));
+      ctx.strokeStyle = `hsl(${p.hue},100%,75%)`;
+      ctx.shadowColor = `hsl(${p.hue},100%,70%)`;
+      ctx.shadowBlur  = stretch > 3 ? 15 : 4;
+      ctx.lineWidth   = p.size * Math.min(1, p.dist/100);
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * Math.max(0.1, p.dist/200), 0, Math.PI*2);
-      ctx.fill();
+      ctx.moveTo(p.prevX, p.prevY);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ctx.restore();
     });
-    ctx.globalAlpha = 1;
+
+    // 中心の黒い穴（ぐわっと広がる）
+    if(holeR > 0){
+      const g = ctx.createRadialGradient(cx,cy,0, cx,cy,holeR*3);
+      g.addColorStop(0,    'rgba(0,0,0,1)');
+      g.addColorStop(0.35, 'rgba(0,0,0,0.98)');
+      g.addColorStop(0.6,  'rgba(0,0,0,0.5)');
+      g.addColorStop(1,    'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, holeR*3, 0, Math.PI*2); ctx.fill();
+
+      // 中心の白いリング（事象の地平線）
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.9, frame/40)})`;
+      ctx.shadowColor = 'rgba(255,255,255,1)';
+      ctx.shadowBlur  = 25;
+      ctx.lineWidth   = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, holeR, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.restore();
+
+    // 最後に崩壊フラッシュ
+    if(frame >= TOTAL - 12){
+      const fi = (frame - (TOTAL-12)) / 12;
+      ctx.fillStyle = `rgba(255,255,255,${(fi * 0.9).toFixed(3)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    if(frame === TOTAL - 1){
+      setTimeout(()=> ctx.clearRect(0,0,W,H), 200);
+    }
 
     frame++;
     if(frame < TOTAL) requestAnimationFrame(loop);
-    else ctx.clearRect(0, 0, W, H);
   })();
 }
 
