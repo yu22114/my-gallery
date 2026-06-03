@@ -460,80 +460,37 @@ function launchTextBoom(done){
 }
 
 // ========================================
-// 4. 画面フラッシュ（黒→白い光がピキーん）
+// 4. 暗い画面をコダックがゆっくり横切る
 // ========================================
 function launchFlash(done){
   const W = canvas.width, H = canvas.height;
-  const DARK_FRAMES = 14, HOLD_FRAMES = 18, FADE_FRAMES = 90;
+  const imgH = H * 0.45;
+  const imgW = imgH * (kodakImg.naturalWidth / kodakImg.naturalHeight || 1);
+  const y    = (H - imgH) / 2;
+  const speed = W / 120;   // 約2秒で横断（60fps想定）
+  let x = -imgW;           // 左端の外からスタート
 
-  const lines = [];
-  for(let i = 0; i < rndInt(2,4); i++){
-    lines.push({ y:H*rnd(0.1,0.9), x:-250, halfW:rnd(80,200), speed:rnd(6,14), thickness:rnd(2,8) });
-  }
-  // 主役のコダックラインはめちゃゆっくり
-  lines.push({ y:H*rnd(0.3,0.7), x:-500, halfW:rnd(280,500), speed:rnd(16,26), thickness:rnd(12,26) });
-
-  let frame = 0;
-  const total = DARK_FRAMES + HOLD_FRAMES + FADE_FRAMES + 200;
-
-  (function flashLoop(){
+  (function loop(){
     ctx.clearRect(0, 0, W, H);
-    let darkAlpha = 0;
-    if(frame < DARK_FRAMES){
-      darkAlpha = frame / DARK_FRAMES;
-    } else if(frame < DARK_FRAMES + HOLD_FRAMES){
-      darkAlpha = 1;
+
+    // 暗幕（コダックが通り過ぎるまでずっと暗い）
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, 0, W, H);
+
+    // コダック
+    x += speed;
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,255,255,0.5)';
+    ctx.shadowBlur  = 20;
+    ctx.drawImage(kodakImg, x, y, imgW, imgH);
+    ctx.restore();
+
+    if(x < W){
+      requestAnimationFrame(loop);
     } else {
-      darkAlpha = Math.max(0, 1 - (frame - DARK_FRAMES - HOLD_FRAMES) / FADE_FRAMES);
+      ctx.clearRect(0, 0, W, H);
+      done?.();
     }
-    if(darkAlpha > 0){
-      ctx.fillStyle = `rgba(0,0,0,${darkAlpha.toFixed(3)})`;
-      ctx.fillRect(0, 0, W, H);
-    }
-
-    const lineStart = DARK_FRAMES + HOLD_FRAMES - 4;
-    if(frame >= lineStart){
-      lines.forEach(l => {
-        l.x += l.speed;
-        // 右端を完全に抜けるまで描画
-        if(l.x < W + l.halfW + 200){
-          // 右端に近づいたらフェード、それ以外は1.0
-          const exitFade = l.x > W - l.halfW
-            ? Math.max(0, 1 - (l.x - (W - l.halfW)) / (l.halfW + 200))
-            : 1;
-
-          // グロー帯（白い光）
-          const grad = ctx.createLinearGradient(l.x-l.halfW,0,l.x+l.halfW,0);
-          grad.addColorStop(0,    'rgba(255,255,255,0)');
-          grad.addColorStop(0.35, `rgba(255,255,255,${(exitFade*0.3).toFixed(3)})`);
-          grad.addColorStop(0.5,  `rgba(255,255,255,${exitFade.toFixed(3)})`);
-          grad.addColorStop(0.65, `rgba(255,255,255,${(exitFade*0.3).toFixed(3)})`);
-          grad.addColorStop(1,    'rgba(255,255,255,0)');
-          ctx.save();
-          ctx.shadowColor = `rgba(255,255,255,${exitFade.toFixed(3)})`;
-          ctx.shadowBlur  = 60;
-          ctx.fillStyle   = grad;
-          ctx.fillRect(l.x-l.halfW, l.y-l.thickness*5, l.halfW*2, l.thickness*10);
-          ctx.restore();
-
-          // コダック画像が右端まで走りきる
-          if(kodakImg.complete){
-            const imgH = l.thickness * 12;
-            const imgW = imgH * (kodakImg.naturalWidth / kodakImg.naturalHeight || 1);
-            ctx.save();
-            ctx.globalAlpha = exitFade * 0.9;
-            ctx.shadowColor = 'rgba(255,255,255,0.8)';
-            ctx.shadowBlur  = 30;
-            ctx.drawImage(kodakImg, l.x - imgW/2, l.y - imgH/2, imgW, imgH);
-            ctx.restore();
-          }
-        }
-      });
-    }
-
-    frame++;
-    if(frame < total) requestAnimationFrame(flashLoop);
-    else { ctx.clearRect(0, 0, W, H); done?.(); }
   })();
 }
 
