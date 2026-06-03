@@ -574,7 +574,79 @@ function launchRareOrbit(done){
   })();
 }
 
-// ---- ランダム発動（レアは1/10） ----
+// ========================================
+// 6. 【超レア】コダック大量バウンド
+// ========================================
+function launchUltraRare(done){
+  const W = canvas.width, H = canvas.height;
+  const COUNT   = 28;
+  const s       = Math.min(W, H) * 0.18;
+  const DURATION = 280;  // フレーム数
+
+  const balls = Array.from({length: COUNT}, () => {
+    const angle = rnd(0, Math.PI * 2);
+    const spd   = rnd(4, 11);
+    return {
+      x:  rnd(s/2, W - s/2),
+      y:  rnd(s/2, H - s/2),
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd,
+      rot: rnd(0, Math.PI * 2),
+      rotV: rnd(-0.08, 0.08),
+    };
+  });
+
+  let frame = 0;
+
+  (function loop(){
+    // 残像でスピード感
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, W, H);
+
+    // うおおおおおお！テキスト（点滅）
+    if(frame % 10 < 6){
+      ctx.save();
+      ctx.font         = `900 ${Math.min(W*0.09, 48)}px sans-serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle    = `hsl(${frame*8 % 360},100%,65%)`;
+      ctx.shadowColor  = 'white';
+      ctx.shadowBlur   = 20;
+      ctx.fillText('うおおおおおお！', W/2, H/2);
+      ctx.restore();
+    }
+
+    balls.forEach(b => {
+      b.x  += b.vx;
+      b.y  += b.vy;
+      b.rot += b.rotV;
+
+      // 壁で跳ね返る
+      if(b.x - s/2 < 0)    { b.x = s/2;    b.vx = Math.abs(b.vx); }
+      if(b.x + s/2 > W)    { b.x = W-s/2;  b.vx = -Math.abs(b.vx); }
+      if(b.y - s/2 < 0)    { b.y = s/2;    b.vy = Math.abs(b.vy); }
+      if(b.y + s/2 > H)    { b.y = H-s/2;  b.vy = -Math.abs(b.vy); }
+
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.rot);
+      ctx.shadowColor = `hsl(${Math.random()*360|0},100%,70%)`;
+      ctx.shadowBlur  = 15;
+      ctx.drawImage(kodakImg, -s/2, -s/2, s, s);
+      ctx.restore();
+    });
+
+    frame++;
+    if(frame < DURATION){
+      requestAnimationFrame(loop);
+    } else {
+      ctx.clearRect(0, 0, W, H);
+      done?.();
+    }
+  })();
+}
+
+// ---- ランダム発動（レアは1/10、超レアは1/20） ----
 const effects = [launchBlackHole, launchLightning, launchTextBoom, launchFlash];
 let isPlaying = false;
 
@@ -590,8 +662,10 @@ document.querySelectorAll('.dl').forEach(a => {
   a.addEventListener('click', () => {
     if(isPlaying) return;
     setPlaying(true);
-    // 1/10 の確率でレア演出
-    const fn = Math.random() < 0.1 ? launchRareOrbit : effects[rndInt(0, effects.length)];
+    const r = Math.random();
+    const fn = r < 0.05  ? launchUltraRare   // 超レア 1/20
+             : r < 0.15  ? launchRareOrbit    // レア   1/10
+             : effects[rndInt(0, effects.length)];
     fn(()=> setPlaying(false));
   });
 });
