@@ -1,225 +1,285 @@
 // .galleryにliが1つ以上あれば .empty を非表示にする
 const gallery = document.querySelector('.gallery');
-const empty = document.querySelector('.empty');
-if (gallery && gallery.children.length > 0) {
-  empty.style.display = 'none';
-}
+const empty   = document.querySelector('.empty');
+if (gallery && gallery.children.length > 0) empty.style.display = 'none';
 
-// ---- Canvas セットアップ ----
+// ---- Canvas ----
 const canvas = document.createElement('canvas');
 canvas.id = 'fx';
 Object.assign(canvas.style, {
-  position: 'fixed', top: 0, left: 0,
-  width: '100%', height: '100%',
-  pointerEvents: 'none',
-  zIndex: 9999,
+  position:'fixed', top:0, left:0, width:'100%', height:'100%',
+  pointerEvents:'none', zIndex:9999,
 });
 document.body.appendChild(canvas);
 const ctx = canvas.getContext('2d');
+function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
+resize(); window.addEventListener('resize', resize);
 
-function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
-resize();
-window.addEventListener('resize', resize);
+// ---- フラッシュ用オーバーレイ ----
+const overlay = document.createElement('div');
+Object.assign(overlay.style, {
+  position:'fixed', inset:0, background:'#000',
+  opacity:0, pointerEvents:'none', zIndex:9998,
+  transition:'opacity 0s',
+});
+document.body.appendChild(overlay);
 
-// ---- パーティクル共通 ----
+// ---- パーティクル ----
 const particles = [];
 let animating = false;
-
-function loop() {
-  if (!particles.length) { animating = false; ctx.clearRect(0,0,canvas.width,canvas.height); return; }
+function loop(){
+  if(!particles.length){ animating=false; ctx.clearRect(0,0,canvas.width,canvas.height); return; }
   animating = true;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.update();
-    p.draw(ctx);
-    if (p.dead()) particles.splice(i, 1);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i]; p.update(); p.draw(ctx);
+    if(p.dead()) particles.splice(i,1);
   }
   requestAnimationFrame(loop);
 }
+function kick(){ if(!animating){ animating=true; loop(); } }
 
-function kick() { if (!animating) { animating = true; loop(); } }
-function rnd(a, b) { return a + Math.random() * (b - a); }
-function rndColor() { return `hsl(${rnd(0,360)|0},100%,65%)`; }
-function rndInt(a, b) { return (rnd(a, b)) | 0; }
+function rnd(a,b){ return a+Math.random()*(b-a); }
+function rndInt(a,b){ return rnd(a,b)|0; }
+function rndColor(){ return `hsl(${rnd(0,360)|0},100%,65%)`; }
+function rndBright(){ return `hsl(${rnd(0,360)|0},100%,80%)`; }
 
-// ---- 1. 花火 ----
-function launchFireworks() {
-  [0, 220, 440].forEach(delay => {
-    setTimeout(() => {
-      const x = canvas.width  * rnd(0.2, 0.8);
-      const y = canvas.height * rnd(0.1, 0.4);
-      const color = rndColor();
-      const n = rndInt(70, 110);
-      for (let i = 0; i < n; i++) {
-        const angle = (Math.PI * 2 / n) * i + rnd(-0.2, 0.2);
-        const spd   = rnd(2, 7);
+// ========== 1. 花火（超ド派手版） ==========
+function launchFireworks(){
+  const shotCount = 8;
+  for(let s=0;s<shotCount;s++){
+    setTimeout(()=>{
+      const x = canvas.width  * rnd(0.1,0.9);
+      const y = canvas.height * rnd(0.05,0.5);
+      const color1 = rndColor(), color2 = rndColor();
+      const n = rndInt(120,180);
+      // メイン爆発
+      for(let i=0;i<n;i++){
+        const angle = (Math.PI*2/n)*i + rnd(-0.15,0.15);
+        const spd   = rnd(4,14);
         particles.push({
-          x, y,
-          vx: Math.cos(angle) * spd,
-          vy: Math.sin(angle) * spd,
-          alpha: 1, color,
-          size: rnd(2, 5),
-          grav: rnd(0.07, 0.12),
-          decay: rnd(0.01, 0.018),
-          update() { this.x+=this.vx; this.y+=this.vy; this.vy+=this.grav; this.vx*=0.98; this.alpha-=this.decay; },
-          draw(c) { c.globalAlpha=this.alpha; c.fillStyle=this.color; c.beginPath(); c.arc(this.x,this.y,this.size,0,Math.PI*2); c.fill(); c.globalAlpha=1; },
-          dead() { return this.alpha <= 0; },
+          x,y, vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd,
+          alpha:1, color:Math.random()<0.5?color1:color2,
+          size:rnd(3,8), grav:rnd(0.06,0.14), decay:rnd(0.008,0.016),
+          trail:[],
+          update(){ this.trail.push({x:this.x,y:this.y,a:this.alpha}); if(this.trail.length>8)this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.vy+=this.grav; this.vx*=0.97; this.alpha-=this.decay; },
+          draw(c){ this.trail.forEach((t,i)=>{ c.globalAlpha=t.a*(i/this.trail.length)*0.4; c.fillStyle=this.color; c.beginPath(); c.arc(t.x,t.y,this.size*0.6,0,Math.PI*2); c.fill(); }); c.globalAlpha=this.alpha; c.fillStyle=this.color; c.beginPath(); c.arc(this.x,this.y,this.size,0,Math.PI*2); c.fill(); c.globalAlpha=1; },
+          dead(){ return this.alpha<=0; },
+        });
+      }
+      // キラキラ小粒
+      for(let i=0;i<60;i++){
+        const angle=rnd(0,Math.PI*2), spd=rnd(1,6);
+        particles.push({
+          x,y, vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd,
+          alpha:1, color:'#fff', size:rnd(1,3),
+          grav:rnd(0.02,0.08), decay:rnd(0.02,0.04),
+          update(){ this.x+=this.vx; this.y+=this.vy; this.vy+=this.grav; this.alpha-=this.decay; },
+          draw(c){ c.globalAlpha=this.alpha; c.fillStyle=this.color; c.beginPath(); c.arc(this.x,this.y,this.size,0,Math.PI*2); c.fill(); c.globalAlpha=1; },
+          dead(){ return this.alpha<=0; },
         });
       }
       kick();
-    }, delay);
+    }, s * rndInt(80,200));
+  }
+}
+
+// ========== 2. 紙吹雪（超大量） ==========
+function launchConfetti(){
+  const shapes = ['rect','circle','strip'];
+  for(let i=0;i<300;i++){
+    setTimeout(()=>{
+      const color=rndColor(), shape=shapes[rndInt(0,3)];
+      const w=rnd(6,18), h=rnd(4,12);
+      particles.push({
+        x:rnd(0,canvas.width), y:-20,
+        vx:rnd(-4,4), vy:rnd(3,10),
+        rot:rnd(0,Math.PI*2), rotV:rnd(-0.2,0.2),
+        alpha:1, color, w, h, shape,
+        wobble:rnd(0,Math.PI*2), wobbleSpd:rnd(0.05,0.15),
+        life:rnd(100,200), age:0,
+        update(){ this.wobble+=this.wobbleSpd; this.x+=this.vx+Math.sin(this.wobble)*1.5; this.y+=this.vy; this.rot+=this.rotV; this.age++; if(this.age>this.life*0.65) this.alpha-=0.022; },
+        draw(c){
+          c.save(); c.globalAlpha=this.alpha; c.fillStyle=this.color;
+          c.translate(this.x,this.y); c.rotate(this.rot);
+          if(this.shape==='rect') c.fillRect(-this.w/2,-this.h/2,this.w,this.h);
+          else if(this.shape==='circle'){ c.beginPath(); c.ellipse(0,0,this.w/2,this.h/2,0,0,Math.PI*2); c.fill(); }
+          else c.fillRect(-this.w/2,-this.h/4,this.w,this.h/2);
+          c.restore();
+        },
+        dead(){ return this.alpha<=0||this.y>canvas.height+30; },
+      });
+      kick();
+    }, i*5);
+  }
+}
+
+// ========== 3. ハート（大量・デカい） ==========
+function heartPath(c,x,y,size){
+  c.beginPath();
+  c.moveTo(x,y+size*0.3);
+  c.bezierCurveTo(x,y,x-size*0.5,y,x-size*0.5,y+size*0.3);
+  c.bezierCurveTo(x-size*0.5,y+size*0.65,x,y+size*0.9,x,y+size*1.1);
+  c.bezierCurveTo(x,y+size*0.9,x+size*0.5,y+size*0.65,x+size*0.5,y+size*0.3);
+  c.bezierCurveTo(x+size*0.5,y,x,y,x,y+size*0.3);
+  c.closePath();
+}
+function launchHearts(){
+  const colors=['#ff1493','#ff69b4','#ff6b9d','#ff0066','#ff85b3','#fff0f5','#ff4da6','#ffb3d9'];
+  for(let i=0;i<60;i++){
+    setTimeout(()=>{
+      const size=rnd(24,70), color=colors[rndInt(0,colors.length)];
+      particles.push({
+        x:rnd(0,canvas.width), y:canvas.height+size,
+        vx:rnd(-2.5,2.5), vy:rnd(-5,-12),
+        alpha:rnd(0.7,1), color, size,
+        wobble:rnd(0,Math.PI*2), wobbleSpd:rnd(0.03,0.09),
+        rotV:rnd(-0.04,0.04), rot:rnd(-0.3,0.3),
+        decay:rnd(0.005,0.012),
+        update(){ this.wobble+=this.wobbleSpd; this.x+=this.vx+Math.sin(this.wobble)*1.2; this.y+=this.vy; this.vy*=0.995; this.rot+=this.rotV; this.alpha-=this.decay; },
+        draw(c){ c.save(); c.globalAlpha=this.alpha; c.fillStyle=this.color; c.translate(this.x,this.y); c.rotate(this.rot); heartPath(c,-this.size/2,-this.size/2,this.size); c.fill(); c.shadowColor=this.color; c.shadowBlur=20; c.fill(); c.restore(); },
+        dead(){ return this.alpha<=0||this.y<-size*2; },
+      });
+      kick();
+    }, i*30);
+  }
+}
+
+// ========== 4. 星屑（デカい・爆散） ==========
+function drawStar(c,x,y,r,points=5){
+  c.beginPath();
+  for(let i=0;i<points*2;i++){
+    const angle=(Math.PI/points)*i-Math.PI/2;
+    const radius=i%2===0?r:r*0.4;
+    i===0?c.moveTo(x+Math.cos(angle)*radius,y+Math.sin(angle)*radius)
+         :c.lineTo(x+Math.cos(angle)*radius,y+Math.sin(angle)*radius);
+  }
+  c.closePath();
+}
+function launchStars(){
+  // 3箇所から同時爆発
+  [[0.2,0.3],[0.5,0.2],[0.8,0.3]].forEach(([fx,fy],bi)=>{
+    setTimeout(()=>{
+      const cx=canvas.width*fx, cy=canvas.height*fy;
+      const n=80;
+      for(let i=0;i<n;i++){
+        const angle=rnd(0,Math.PI*2), spd=rnd(3,14);
+        particles.push({
+          x:cx, y:cy,
+          vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd,
+          alpha:1, color:rndBright(),
+          size:rnd(10,30), rot:rnd(0,Math.PI*2), rotV:rnd(-0.15,0.15),
+          decay:rnd(0.007,0.015), grav:rnd(0.03,0.09),
+          trail:[],
+          update(){ this.trail.push({x:this.x,y:this.y,a:this.alpha}); if(this.trail.length>6)this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.vy+=this.grav; this.vx*=0.98; this.rot+=this.rotV; this.alpha-=this.decay; },
+          draw(c){ this.trail.forEach((t,i)=>{ c.save(); c.globalAlpha=t.a*(i/this.trail.length)*0.3; c.fillStyle=this.color; c.translate(t.x,t.y); c.rotate(this.rot); drawStar(c,0,0,this.size*0.7); c.fill(); c.restore(); }); c.save(); c.globalAlpha=this.alpha; c.fillStyle=this.color; c.shadowColor=this.color; c.shadowBlur=15; c.translate(this.x,this.y); c.rotate(this.rot); drawStar(c,0,0,this.size); c.fill(); c.restore(); },
+          dead(){ return this.alpha<=0; },
+        });
+      }
+      kick();
+    }, bi*150);
   });
 }
 
-// ---- 2. 紙吹雪 ----
-function launchConfetti() {
-  const n = 180;
-  for (let i = 0; i < n; i++) {
-    setTimeout(() => {
-      const color = rndColor();
-      const w = rnd(6, 14), h = rnd(4, 9);
+// ========== 5. シャボン玉（超大量・デカい） ==========
+function launchBubbles(){
+  for(let i=0;i<50;i++){
+    setTimeout(()=>{
+      const r=rnd(20,80), hue=rndInt(0,360);
       particles.push({
-        x: rnd(0, canvas.width),
-        y: -20,
-        vx: rnd(-2, 2),
-        vy: rnd(2, 6),
-        rot: rnd(0, Math.PI * 2),
-        rotV: rnd(-0.15, 0.15),
-        alpha: 1, color, w, h,
-        life: rnd(120, 200), age: 0,
-        update() { this.x+=this.vx; this.y+=this.vy; this.vx*=0.99; this.rot+=this.rotV; this.age++; if(this.age>this.life*0.7) this.alpha-=0.018; },
-        draw(c) {
-          c.save(); c.globalAlpha=this.alpha; c.fillStyle=this.color;
-          c.translate(this.x,this.y); c.rotate(this.rot);
-          c.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+        x:rnd(r,canvas.width-r), y:canvas.height+r,
+        vx:rnd(-1.5,1.5), vy:rnd(-2,-5),
+        alpha:rnd(0.5,0.9), r, hue,
+        wobble:rnd(0,Math.PI*2), wobbleSpd:rnd(0.02,0.07),
+        decay:rnd(0.003,0.008),
+        update(){ this.wobble+=this.wobbleSpd; this.x+=this.vx+Math.sin(this.wobble)*0.8; this.y+=this.vy; this.alpha-=this.decay; },
+        draw(c){
+          c.save(); c.globalAlpha=this.alpha;
+          const g=c.createRadialGradient(this.x-this.r*0.35,this.y-this.r*0.35,this.r*0.05,this.x,this.y,this.r);
+          g.addColorStop(0,`hsla(${this.hue},90%,98%,0.95)`);
+          g.addColorStop(0.4,`hsla(${this.hue},80%,75%,0.15)`);
+          g.addColorStop(1,`hsla(${this.hue},90%,65%,0.7)`);
+          c.fillStyle=g; c.beginPath(); c.arc(this.x,this.y,this.r,0,Math.PI*2); c.fill();
+          c.strokeStyle=`hsla(${this.hue},80%,85%,0.6)`; c.lineWidth=2; c.stroke();
+          c.fillStyle='rgba(255,255,255,0.7)'; c.beginPath();
+          c.ellipse(this.x-this.r*0.3,this.y-this.r*0.32,this.r*0.22,this.r*0.13,-Math.PI/4,0,Math.PI*2); c.fill();
           c.restore();
         },
-        dead() { return this.alpha <= 0 || this.y > canvas.height + 20; },
+        dead(){ return this.alpha<=0||this.y<-this.r*2; },
       });
       kick();
-    }, i * 8);
+    }, i*50);
   }
 }
 
-// ---- 3. ハート ----
-function heartPath(c, x, y, size) {
-  c.beginPath();
-  c.moveTo(x, y + size * 0.3);
-  c.bezierCurveTo(x, y, x - size * 0.5, y, x - size * 0.5, y + size * 0.3);
-  c.bezierCurveTo(x - size * 0.5, y + size * 0.65, x, y + size * 0.9, x, y + size * 1.1);
-  c.bezierCurveTo(x, y + size * 0.9, x + size * 0.5, y + size * 0.65, x + size * 0.5, y + size * 0.3);
-  c.bezierCurveTo(x + size * 0.5, y, x, y, x, y + size * 0.3);
-  c.closePath();
-}
+// ========== 6. 画面フラッシュ（黒→白い光がピキーん） ==========
+function launchFlash(){
+  // 画面を黒く
+  overlay.style.transition='opacity 0s';
+  overlay.style.opacity='1';
 
-function launchHearts() {
-  const colors = ['#ff6b9d','#ff4f81','#ff85b3','#ffb3cc','#ff1a6e','#ff69b4'];
-  const n = 30;
-  for (let i = 0; i < n; i++) {
-    setTimeout(() => {
-      const color = colors[rndInt(0, colors.length)];
-      const size  = rnd(16, 40);
-      particles.push({
-        x: rnd(canvas.width * 0.1, canvas.width * 0.9),
-        y: canvas.height + 20,
-        vx: rnd(-1.5, 1.5),
-        vy: rnd(-4, -8),
-        alpha: 1, color, size,
-        wobble: rnd(0, Math.PI * 2),
-        wobbleSpeed: rnd(0.04, 0.1),
-        update() { this.wobble+=this.wobbleSpeed; this.x+=this.vx+Math.sin(this.wobble)*0.8; this.y+=this.vy; this.vy*=0.99; this.alpha-=0.008; },
-        draw(c) { c.save(); c.globalAlpha=this.alpha; c.fillStyle=this.color; heartPath(c,this.x,this.y,this.size); c.fill(); c.restore(); },
-        dead() { return this.alpha <= 0 || this.y < -60; },
+  setTimeout(()=>{
+    overlay.style.transition='opacity 0.15s';
+    overlay.style.opacity='0';
+
+    // 白い光の線を複数Canvas上で走らせる
+    const lines=[];
+    const lineCount = rndInt(2,5);
+    for(let i=0;i<lineCount;i++){
+      lines.push({
+        y: canvas.height*rnd(0.2,0.8),
+        x: -200,
+        width: rnd(60,200),
+        speed: rnd(40,80),
+        alpha: rnd(0.7,1),
+        thickness: rnd(2,12),
+        color: `hsl(${rndInt(180,240)},100%,95%)`,
       });
-      kick();
-    }, i * 40);
-  }
-}
+    }
+    // 必ず1本は純白の太いやつ
+    lines.push({ y:canvas.height*rnd(0.3,0.7), x:-400, width:rnd(200,400), speed:rnd(80,120), alpha:1, thickness:rnd(8,20), color:'#ffffff' });
 
-// ---- 4. 星屑 ----
-function drawStar(c, x, y, r, points=5) {
-  c.beginPath();
-  for (let i = 0; i < points * 2; i++) {
-    const angle = (Math.PI / points) * i - Math.PI / 2;
-    const radius = i % 2 === 0 ? r : r * 0.45;
-    i === 0 ? c.moveTo(x + Math.cos(angle)*radius, y + Math.sin(angle)*radius)
-             : c.lineTo(x + Math.cos(angle)*radius, y + Math.sin(angle)*radius);
-  }
-  c.closePath();
-}
-
-function launchStars() {
-  const cx = canvas.width / 2, cy = canvas.height / 2;
-  const n = 60;
-  for (let i = 0; i < n; i++) {
-    const angle = (Math.PI * 2 / n) * i;
-    const spd   = rnd(3, 10);
-    const color = rndColor();
-    const size  = rnd(8, 20);
-    particles.push({
-      x: cx, y: cy,
-      vx: Math.cos(angle) * spd,
-      vy: Math.sin(angle) * spd,
-      alpha: 1, color, size,
-      rot: rnd(0, Math.PI * 2),
-      rotV: rnd(-0.1, 0.1),
-      decay: rnd(0.008, 0.016),
-      update() { this.x+=this.vx; this.y+=this.vy; this.vx*=0.97; this.vy*=0.97; this.vy+=0.05; this.rot+=this.rotV; this.alpha-=this.decay; },
-      draw(c) { c.save(); c.globalAlpha=this.alpha; c.fillStyle=this.color; c.translate(this.x,this.y); c.rotate(this.rot); drawStar(c,0,0,this.size); c.fill(); c.restore(); },
-      dead() { return this.alpha <= 0; },
-    });
-  }
-  kick();
-}
-
-// ---- 5. シャボン玉 ----
-function launchBubbles() {
-  const n = 25;
-  for (let i = 0; i < n; i++) {
-    setTimeout(() => {
-      const r = rnd(18, 50);
-      const hue = rnd(0, 360) | 0;
-      particles.push({
-        x: rnd(r, canvas.width - r),
-        y: canvas.height + r,
-        vx: rnd(-1, 1),
-        vy: rnd(-1.5, -3.5),
-        alpha: rnd(0.4, 0.7),
-        r, hue,
-        wobble: rnd(0, Math.PI * 2),
-        wobbleSpeed: rnd(0.02, 0.06),
-        update() { this.wobble+=this.wobbleSpeed; this.x+=this.vx+Math.sin(this.wobble)*0.5; this.y+=this.vy; this.alpha-=0.004; },
-        draw(c) {
-          c.save(); c.globalAlpha = this.alpha;
-          // 本体
-          const grad = c.createRadialGradient(this.x - this.r*0.3, this.y - this.r*0.3, this.r*0.05, this.x, this.y, this.r);
-          grad.addColorStop(0, `hsla(${this.hue},80%,95%,0.9)`);
-          grad.addColorStop(0.5, `hsla(${this.hue},70%,70%,0.2)`);
-          grad.addColorStop(1, `hsla(${this.hue},80%,60%,0.6)`);
-          c.fillStyle = grad;
-          c.beginPath(); c.arc(this.x, this.y, this.r, 0, Math.PI*2); c.fill();
-          // 輪郭
-          c.strokeStyle = `hsla(${this.hue},80%,80%,0.5)`;
-          c.lineWidth = 1.5;
-          c.stroke();
-          // ハイライト
-          c.fillStyle = 'rgba(255,255,255,0.6)';
-          c.beginPath(); c.ellipse(this.x - this.r*0.3, this.y - this.r*0.3, this.r*0.2, this.r*0.12, -Math.PI/4, 0, Math.PI*2); c.fill();
-          c.restore();
-        },
-        dead() { return this.alpha <= 0 || this.y < -this.r * 2; },
+    let frame=0;
+    const maxFrames=30;
+    (function flashLoop(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      let alive=false;
+      lines.forEach(l=>{
+        l.x+=l.speed;
+        if(l.x<canvas.width+l.width){
+          alive=true;
+          // 光の中心
+          const grad=ctx.createLinearGradient(l.x-l.width,0,l.x+l.width,0);
+          grad.addColorStop(0,'transparent');
+          grad.addColorStop(0.3,l.color.replace(')',`,${l.alpha*0.3})`).replace('hsl','hsla').replace('#ffffff',`rgba(255,255,255,${l.alpha*0.3})`));
+          grad.addColorStop(0.5,l.color);
+          grad.addColorStop(0.7,l.color.replace(')',`,${l.alpha*0.3})`).replace('hsl','hsla').replace('#ffffff',`rgba(255,255,255,${l.alpha*0.3})`));
+          grad.addColorStop(1,'transparent');
+          ctx.save();
+          ctx.globalAlpha=l.alpha*(1-frame/maxFrames);
+          // グロー
+          ctx.shadowColor=l.color; ctx.shadowBlur=40;
+          ctx.fillStyle=grad;
+          ctx.fillRect(l.x-l.width, l.y-l.thickness*3, l.width*2, l.thickness*6);
+          // 中心線
+          ctx.shadowBlur=0;
+          ctx.fillStyle=l.color;
+          ctx.fillRect(l.x-l.width, l.y-l.thickness/2, l.width*2, l.thickness);
+          ctx.restore();
+        }
       });
-      kick();
-    }, i * 60);
-  }
+      frame++;
+      if(alive&&frame<60) requestAnimationFrame(flashLoop);
+      else ctx.clearRect(0,0,canvas.width,canvas.height);
+    })();
+  }, 80);
 }
 
-// ---- ランダムで発動 ----
-const effects = [launchFireworks, launchConfetti, launchHearts, launchStars, launchBubbles];
+// ---- ランダム発動（フラッシュは毎回追加で走る） ----
+const effects = [launchFireworks, launchConfetti, launchHearts, launchStars, launchBubbles, launchFlash];
 
-document.querySelectorAll('.dl').forEach(a => {
-  a.addEventListener('click', () => {
+document.querySelectorAll('.dl').forEach(a=>{
+  a.addEventListener('click', ()=>{
     const fn = effects[rndInt(0, effects.length)];
     fn();
   });
