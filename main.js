@@ -658,10 +658,23 @@ document.querySelectorAll('.dl').forEach(a => {
   a.addEventListener('click', () => {
     if(isPlaying) return;
     setPlaying(true);
+
+    // 最大15秒で強制終了（アプリ内ブラウザ対策）
+    const safetyTimer = setTimeout(() => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      setPlaying(false);
+    }, 15000);
+
+    const done = () => {
+      clearTimeout(safetyTimer);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      setPlaying(false);
+    };
+
     const r = Math.random();
-    const fn = r < 0.05  ? launchUltraRare   // 超レア 1/20
-             : r < 0.15  ? launchRareOrbit    // レア   1/10
+    const fn = r < 0.05  ? launchUltraRare
+             : r < 0.15  ? launchRareOrbit
              : effects[rndInt(0, effects.length)];
-    fn(()=> setPlaying(false));
+    fn(done);
   });
 });
