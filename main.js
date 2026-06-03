@@ -656,26 +656,26 @@ function setPlaying(val){
 
 document.querySelectorAll('.dl').forEach(a => {
   a.addEventListener('click', (e) => {
-    e.preventDefault();  // ブラウザのダウンロード/プレビューを先に止める
+    e.preventDefault();
 
     if(isPlaying) return;
     setPlaying(true);
 
-    const href = a.href;
-    const filename = a.getAttribute('download') || 'image';
+    const src      = a.dataset.src;
+    const filename = a.dataset.filename || 'image';
 
     // 最大15秒で強制終了
     const safetyTimer = setTimeout(() => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       setPlaying(false);
-      triggerDownload(href, filename);
+      triggerDownload(src, filename);
     }, 15000);
 
     const done = () => {
       clearTimeout(safetyTimer);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       setPlaying(false);
-      triggerDownload(href, filename);
+      triggerDownload(src, filename);
     };
 
     const r = Math.random();
@@ -686,9 +686,22 @@ document.querySelectorAll('.dl').forEach(a => {
   });
 });
 
-function triggerDownload(href, filename){
-  const a = document.createElement('a');
-  a.href     = href;
-  a.download = filename;
-  a.click();
+// fetch→Blobでダウンロード（アプリ内ブラウザのプレビュー回避）
+function triggerDownload(src, filename){
+  fetch(src)
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href     = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    })
+    .catch(() => {
+      // fetchが失敗したら直接リンクで開く
+      window.open(src, '_blank');
+    });
 }
