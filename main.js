@@ -15,211 +15,235 @@ const ctx = canvas.getContext('2d');
 function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
 resize(); window.addEventListener('resize', resize);
 
-// ---- フラッシュ用オーバーレイ ----
-const overlay = document.createElement('div');
-Object.assign(overlay.style, {
-  position:'fixed', inset:0, background:'#000',
-  opacity:0, pointerEvents:'none', zIndex:9998,
-  transition:'opacity 0s',
-});
-document.body.appendChild(overlay);
-
-// ---- パーティクル ----
-const particles = [];
-let animating = false;
-function loop(){
-  if(!particles.length){ animating=false; ctx.clearRect(0,0,canvas.width,canvas.height); return; }
-  animating = true;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i]; p.update(); p.draw(ctx);
-    if(p.dead()) particles.splice(i,1);
-  }
-  requestAnimationFrame(loop);
-}
-function kick(){ if(!animating){ animating=true; loop(); } }
-
-function rnd(a,b){ return a+Math.random()*(b-a); }
+function rnd(a,b){ return a + Math.random()*(b-a); }
 function rndInt(a,b){ return rnd(a,b)|0; }
-function rndColor(){ return `hsl(${rnd(0,360)|0},100%,65%)`; }
-function rndBright(){ return `hsl(${rnd(0,360)|0},100%,80%)`; }
 
-// ========== 1. 花火（超ド派手版） ==========
-function launchFireworks(){
-  const shotCount = 8;
-  for(let s=0;s<shotCount;s++){
-    setTimeout(()=>{
-      const x = canvas.width  * rnd(0.1,0.9);
-      const y = canvas.height * rnd(0.05,0.5);
-      const color1 = rndColor(), color2 = rndColor();
-      const n = rndInt(120,180);
-      // メイン爆発
-      for(let i=0;i<n;i++){
-        const angle = (Math.PI*2/n)*i + rnd(-0.15,0.15);
-        const spd   = rnd(4,14);
-        particles.push({
-          x,y, vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd,
-          alpha:1, color:Math.random()<0.5?color1:color2,
-          size:rnd(3,8), grav:rnd(0.06,0.14), decay:rnd(0.008,0.016),
-          trail:[],
-          update(){ this.trail.push({x:this.x,y:this.y,a:this.alpha}); if(this.trail.length>8)this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.vy+=this.grav; this.vx*=0.97; this.alpha-=this.decay; },
-          draw(c){ this.trail.forEach((t,i)=>{ c.globalAlpha=t.a*(i/this.trail.length)*0.4; c.fillStyle=this.color; c.beginPath(); c.arc(t.x,t.y,this.size*0.6,0,Math.PI*2); c.fill(); }); c.globalAlpha=this.alpha; c.fillStyle=this.color; c.beginPath(); c.arc(this.x,this.y,this.size,0,Math.PI*2); c.fill(); c.globalAlpha=1; },
-          dead(){ return this.alpha<=0; },
-        });
-      }
-      // キラキラ小粒
-      for(let i=0;i<60;i++){
-        const angle=rnd(0,Math.PI*2), spd=rnd(1,6);
-        particles.push({
-          x,y, vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd,
-          alpha:1, color:'#fff', size:rnd(1,3),
-          grav:rnd(0.02,0.08), decay:rnd(0.02,0.04),
-          update(){ this.x+=this.vx; this.y+=this.vy; this.vy+=this.grav; this.alpha-=this.decay; },
-          draw(c){ c.globalAlpha=this.alpha; c.fillStyle=this.color; c.beginPath(); c.arc(this.x,this.y,this.size,0,Math.PI*2); c.fill(); c.globalAlpha=1; },
-          dead(){ return this.alpha<=0; },
-        });
-      }
-      kick();
-    }, s * rndInt(80,200));
-  }
-}
+// ========================================
+// 1. ブラックホール
+// ========================================
+function launchBlackHole(){
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2;
+  const TOTAL = 120;
 
-// ========== 2. 紙吹雪（超大量） ==========
-function launchConfetti(){
-  const shapes = ['rect','circle','strip'];
-  for(let i=0;i<300;i++){
-    setTimeout(()=>{
-      const color=rndColor(), shape=shapes[rndInt(0,3)];
-      const w=rnd(6,18), h=rnd(4,12);
-      particles.push({
-        x:rnd(0,canvas.width), y:-20,
-        vx:rnd(-4,4), vy:rnd(3,10),
-        rot:rnd(0,Math.PI*2), rotV:rnd(-0.2,0.2),
-        alpha:1, color, w, h, shape,
-        wobble:rnd(0,Math.PI*2), wobbleSpd:rnd(0.05,0.15),
-        life:rnd(100,200), age:0,
-        update(){ this.wobble+=this.wobbleSpd; this.x+=this.vx+Math.sin(this.wobble)*1.5; this.y+=this.vy; this.rot+=this.rotV; this.age++; if(this.age>this.life*0.65) this.alpha-=0.022; },
-        draw(c){
-          c.save(); c.globalAlpha=this.alpha; c.fillStyle=this.color;
-          c.translate(this.x,this.y); c.rotate(this.rot);
-          if(this.shape==='rect') c.fillRect(-this.w/2,-this.h/2,this.w,this.h);
-          else if(this.shape==='circle'){ c.beginPath(); c.ellipse(0,0,this.w/2,this.h/2,0,0,Math.PI*2); c.fill(); }
-          else c.fillRect(-this.w/2,-this.h/4,this.w,this.h/2);
-          c.restore();
-        },
-        dead(){ return this.alpha<=0||this.y>canvas.height+30; },
-      });
-      kick();
-    }, i*5);
-  }
-}
-
-// ========== 3. ハート（大量・デカい） ==========
-function heartPath(c,x,y,size){
-  c.beginPath();
-  c.moveTo(x,y+size*0.3);
-  c.bezierCurveTo(x,y,x-size*0.5,y,x-size*0.5,y+size*0.3);
-  c.bezierCurveTo(x-size*0.5,y+size*0.65,x,y+size*0.9,x,y+size*1.1);
-  c.bezierCurveTo(x,y+size*0.9,x+size*0.5,y+size*0.65,x+size*0.5,y+size*0.3);
-  c.bezierCurveTo(x+size*0.5,y,x,y,x,y+size*0.3);
-  c.closePath();
-}
-function launchHearts(){
-  const colors=['#ff1493','#ff69b4','#ff6b9d','#ff0066','#ff85b3','#fff0f5','#ff4da6','#ffb3d9'];
-  for(let i=0;i<60;i++){
-    setTimeout(()=>{
-      const size=rnd(24,70), color=colors[rndInt(0,colors.length)];
-      particles.push({
-        x:rnd(0,canvas.width), y:canvas.height+size,
-        vx:rnd(-2.5,2.5), vy:rnd(-5,-12),
-        alpha:rnd(0.7,1), color, size,
-        wobble:rnd(0,Math.PI*2), wobbleSpd:rnd(0.03,0.09),
-        rotV:rnd(-0.04,0.04), rot:rnd(-0.3,0.3),
-        decay:rnd(0.005,0.012),
-        update(){ this.wobble+=this.wobbleSpd; this.x+=this.vx+Math.sin(this.wobble)*1.2; this.y+=this.vy; this.vy*=0.995; this.rot+=this.rotV; this.alpha-=this.decay; },
-        draw(c){ c.save(); c.globalAlpha=this.alpha; c.fillStyle=this.color; c.translate(this.x,this.y); c.rotate(this.rot); heartPath(c,-this.size/2,-this.size/2,this.size); c.fill(); c.shadowColor=this.color; c.shadowBlur=20; c.fill(); c.restore(); },
-        dead(){ return this.alpha<=0||this.y<-size*2; },
-      });
-      kick();
-    }, i*30);
-  }
-}
-
-// ========== 4. 星屑（デカい・爆散） ==========
-function drawStar(c,x,y,r,points=5){
-  c.beginPath();
-  for(let i=0;i<points*2;i++){
-    const angle=(Math.PI/points)*i-Math.PI/2;
-    const radius=i%2===0?r:r*0.4;
-    i===0?c.moveTo(x+Math.cos(angle)*radius,y+Math.sin(angle)*radius)
-         :c.lineTo(x+Math.cos(angle)*radius,y+Math.sin(angle)*radius);
-  }
-  c.closePath();
-}
-function launchStars(){
-  // 3箇所から同時爆発
-  [[0.2,0.3],[0.5,0.2],[0.8,0.3]].forEach(([fx,fy],bi)=>{
-    setTimeout(()=>{
-      const cx=canvas.width*fx, cy=canvas.height*fy;
-      const n=80;
-      for(let i=0;i<n;i++){
-        const angle=rnd(0,Math.PI*2), spd=rnd(3,14);
-        particles.push({
-          x:cx, y:cy,
-          vx:Math.cos(angle)*spd, vy:Math.sin(angle)*spd,
-          alpha:1, color:rndBright(),
-          size:rnd(10,30), rot:rnd(0,Math.PI*2), rotV:rnd(-0.15,0.15),
-          decay:rnd(0.007,0.015), grav:rnd(0.03,0.09),
-          trail:[],
-          update(){ this.trail.push({x:this.x,y:this.y,a:this.alpha}); if(this.trail.length>6)this.trail.shift(); this.x+=this.vx; this.y+=this.vy; this.vy+=this.grav; this.vx*=0.98; this.rot+=this.rotV; this.alpha-=this.decay; },
-          draw(c){ this.trail.forEach((t,i)=>{ c.save(); c.globalAlpha=t.a*(i/this.trail.length)*0.3; c.fillStyle=this.color; c.translate(t.x,t.y); c.rotate(this.rot); drawStar(c,0,0,this.size*0.7); c.fill(); c.restore(); }); c.save(); c.globalAlpha=this.alpha; c.fillStyle=this.color; c.shadowColor=this.color; c.shadowBlur=15; c.translate(this.x,this.y); c.rotate(this.rot); drawStar(c,0,0,this.size); c.fill(); c.restore(); },
-          dead(){ return this.alpha<=0; },
-        });
-      }
-      kick();
-    }, bi*150);
+  // パーティクルを画面全体にばら撒く
+  const pts = Array.from({length: 300}, () => ({
+    x: rnd(0, W),
+    y: rnd(0, H),
+    angle: Math.atan2(rnd(0,H)-cy, rnd(0,W)-cx),
+    dist: rnd(80, Math.max(W,H)*0.7),
+    speed: rnd(0.01, 0.03),
+    size: rnd(2, 6),
+    hue: rndInt(200, 320),
+    alpha: 1,
+  }));
+  pts.forEach(p => {
+    p.x = cx + Math.cos(p.angle) * p.dist;
+    p.y = cy + Math.sin(p.angle) * p.dist;
   });
+
+  let frame = 0;
+  (function loop(){
+    ctx.clearRect(0, 0, W, H);
+
+    // 中心の黒い穴
+    const holeR = Math.min(frame * 1.5, 60);
+    if(holeR > 0){
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, holeR * 2.5);
+      g.addColorStop(0,   'rgba(0,0,0,0.95)');
+      g.addColorStop(0.4, 'rgba(0,0,0,0.6)');
+      g.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, holeR * 2.5, 0, Math.PI*2); ctx.fill();
+    }
+
+    pts.forEach(p => {
+      const pull = Math.max(0.02, 1 - p.dist / 600);
+      p.speed += pull * 0.004;
+      p.angle += p.speed;
+      p.dist  *= (1 - pull * 0.04);
+      p.x = cx + Math.cos(p.angle) * p.dist;
+      p.y = cy + Math.sin(p.angle) * p.dist;
+      if(p.dist < 5) p.alpha -= 0.1;
+
+      ctx.globalAlpha = Math.max(0, p.alpha);
+      ctx.fillStyle = `hsl(${p.hue},100%,70%)`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * Math.max(0.1, p.dist/200), 0, Math.PI*2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    frame++;
+    if(frame < TOTAL) requestAnimationFrame(loop);
+    else ctx.clearRect(0, 0, W, H);
+  })();
 }
 
-// ========== 5. シャボン玉（超大量・デカい） ==========
-function launchBubbles(){
-  for(let i=0;i<50;i++){
-    setTimeout(()=>{
-      const r=rnd(20,80), hue=rndInt(0,360);
-      particles.push({
-        x:rnd(r,canvas.width-r), y:canvas.height+r,
-        vx:rnd(-1.5,1.5), vy:rnd(-2,-5),
-        alpha:rnd(0.5,0.9), r, hue,
-        wobble:rnd(0,Math.PI*2), wobbleSpd:rnd(0.02,0.07),
-        decay:rnd(0.003,0.008),
-        update(){ this.wobble+=this.wobbleSpd; this.x+=this.vx+Math.sin(this.wobble)*0.8; this.y+=this.vy; this.alpha-=this.decay; },
-        draw(c){
-          c.save(); c.globalAlpha=this.alpha;
-          const g=c.createRadialGradient(this.x-this.r*0.35,this.y-this.r*0.35,this.r*0.05,this.x,this.y,this.r);
-          g.addColorStop(0,`hsla(${this.hue},90%,98%,0.95)`);
-          g.addColorStop(0.4,`hsla(${this.hue},80%,75%,0.15)`);
-          g.addColorStop(1,`hsla(${this.hue},90%,65%,0.7)`);
-          c.fillStyle=g; c.beginPath(); c.arc(this.x,this.y,this.r,0,Math.PI*2); c.fill();
-          c.strokeStyle=`hsla(${this.hue},80%,85%,0.6)`; c.lineWidth=2; c.stroke();
-          c.fillStyle='rgba(255,255,255,0.7)'; c.beginPath();
-          c.ellipse(this.x-this.r*0.3,this.y-this.r*0.32,this.r*0.22,this.r*0.13,-Math.PI/4,0,Math.PI*2); c.fill();
-          c.restore();
-        },
-        dead(){ return this.alpha<=0||this.y<-this.r*2; },
-      });
-      kick();
-    }, i*50);
+// ========================================
+// 2. 稲妻
+// ========================================
+function lightning(x1, y1, x2, y2, depth){
+  if(depth === 0) return [[x1,y1,x2,y2]];
+  const mx = (x1+x2)/2 + rnd(-1,1) * rnd(20,80) * (depth/4);
+  const my = (y1+y2)/2 + rnd(-1,1) * rnd(20,80) * (depth/4);
+  const segs = [
+    ...lightning(x1,y1,mx,my,depth-1),
+    ...lightning(mx,my,x2,y2,depth-1),
+  ];
+  // ランダムに枝を生やす
+  if(depth >= 2 && Math.random() < 0.4){
+    const bx = mx + rnd(-1,1)*100, by = my + rnd(30,120);
+    segs.push(...lightning(mx,my,bx,by,depth-2));
   }
+  return segs;
 }
 
-// ========== 6. 画面フラッシュ（黒→白い光がピキーん） ==========
+function launchLightning(){
+  const W = canvas.width, H = canvas.height;
+  const bolts = [];
+
+  // 2〜4本の稲妻
+  for(let b = 0; b < rndInt(2,5); b++){
+    const x1 = rnd(W*0.2, W*0.8);
+    const segs = lightning(x1, 0, x1 + rnd(-100,100), H, 4);
+    bolts.push({ segs, delay: b * rndInt(60,120), alpha: 1 });
+  }
+
+  let frame = 0;
+  (function loop(){
+    ctx.clearRect(0, 0, W, H);
+    let alive = false;
+
+    bolts.forEach(bolt => {
+      if(frame < bolt.delay) return;
+      const age = frame - bolt.delay;
+
+      // 最初の数フレームは全体フラッシュ
+      if(age < 3){
+        ctx.fillStyle = `rgba(200,220,255,${0.15 * (3-age)/3})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      bolt.alpha = Math.max(0, 1 - age/18);
+      if(bolt.alpha <= 0) return;
+      alive = true;
+
+      bolt.segs.forEach(([x1,y1,x2,y2]) => {
+        // グロー
+        ctx.save();
+        ctx.shadowColor = 'rgba(180,220,255,1)';
+        ctx.shadowBlur  = 20;
+        ctx.strokeStyle = `rgba(255,255,255,${bolt.alpha})`;
+        ctx.lineWidth   = rnd(1, 3);
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+        // 細い芯
+        ctx.shadowBlur  = 0;
+        ctx.strokeStyle = `rgba(220,240,255,${bolt.alpha})`;
+        ctx.lineWidth   = 1;
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+        ctx.restore();
+      });
+    });
+
+    frame++;
+    if(alive || frame < 10) requestAnimationFrame(loop);
+    else ctx.clearRect(0, 0, W, H);
+  })();
+}
+
+// ========================================
+// 3. NICE!! テキスト爆発
+// ========================================
+const WORDS = ['NICE!!', 'YOOO!!', 'GJ!!', 'FIRE🔥', 'LET\'S GO!!', 'BASED!!', 'W!!!'];
+
+function launchTextBoom(){
+  const W = canvas.width, H = canvas.height;
+  const word  = WORDS[rndInt(0, WORDS.length)];
+  const cx = W/2, cy = H/2;
+
+  // 衝撃波リング
+  const rings = [
+    { r:0, speed:18, alpha:1, color:'255,255,255' },
+    { r:0, speed:12, alpha:0.7, color:'255,200,50' },
+  ];
+
+  // スパーク
+  const sparks = Array.from({length:60}, () => {
+    const a = rnd(0, Math.PI*2), s = rnd(8,22);
+    return { x:cx, y:cy, vx:Math.cos(a)*s, vy:Math.sin(a)*s, alpha:1, size:rnd(2,6), hue:rndInt(30,60) };
+  });
+
+  let frame = 0;
+  const TOTAL = 70;
+
+  (function loop(){
+    ctx.clearRect(0, 0, W, H);
+    const t = frame / TOTAL;
+
+    // テキスト
+    const scale = frame < 8 ? frame/8 : 1 + (frame-8)*0.005;
+    const textAlpha = frame < 5 ? frame/5 : Math.max(0, 1 - (frame-5)/35);
+    if(textAlpha > 0){
+      const size = Math.min(W*0.22, 120) * scale;
+      ctx.save();
+      ctx.globalAlpha  = textAlpha;
+      ctx.font         = `900 ${size}px sans-serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle    = '#fff';
+      ctx.shadowColor  = '#ffdd00';
+      ctx.shadowBlur   = 40;
+      ctx.fillText(word, cx, cy);
+      ctx.shadowBlur   = 0;
+      ctx.strokeStyle  = '#ffaa00';
+      ctx.lineWidth    = size * 0.04;
+      ctx.strokeText(word, cx, cy);
+      ctx.restore();
+    }
+
+    // 衝撃波
+    rings.forEach(ring => {
+      ring.r += ring.speed;
+      ring.alpha = Math.max(0, ring.alpha - 0.04);
+      if(ring.alpha > 0){
+        ctx.save();
+        ctx.globalAlpha  = ring.alpha;
+        ctx.strokeStyle  = `rgba(${ring.color},1)`;
+        ctx.lineWidth    = Math.max(1, 8*(1-ring.r/(W*0.8)));
+        ctx.shadowColor  = `rgba(${ring.color},0.8)`;
+        ctx.shadowBlur   = 20;
+        ctx.beginPath(); ctx.arc(cx, cy, ring.r, 0, Math.PI*2); ctx.stroke();
+        ctx.restore();
+      }
+    });
+
+    // スパーク
+    sparks.forEach(s => {
+      s.x += s.vx; s.y += s.vy;
+      s.vx *= 0.95; s.vy *= 0.95; s.vy += 0.3;
+      s.alpha -= 0.022;
+      if(s.alpha > 0){
+        ctx.globalAlpha = s.alpha;
+        ctx.fillStyle   = `hsl(${s.hue},100%,65%)`;
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
+      }
+    });
+    ctx.globalAlpha = 1;
+
+    frame++;
+    if(frame < TOTAL) requestAnimationFrame(loop);
+    else ctx.clearRect(0, 0, W, H);
+  })();
+}
+
+// ========================================
+// 4. 画面フラッシュ（黒→白い光がピキーん）
+// ========================================
 function launchFlash(){
   const W = canvas.width, H = canvas.height;
-  const DARK_FRAMES  = 8;   // 暗くなるフレーム数
-  const HOLD_FRAMES  = 6;   // 暗いまま維持
-  const FADE_FRAMES  = 25;  // 明るさが戻るフレーム数
+  const DARK_FRAMES = 8, HOLD_FRAMES = 6, FADE_FRAMES = 25;
 
-  // 光の線
   const lines = [];
   for(let i = 0; i < rndInt(2,4); i++){
     lines.push({ y:H*rnd(0.1,0.9), x:-250, halfW:rnd(80,200), speed:rnd(30,65), thickness:rnd(2,8) });
@@ -231,25 +255,19 @@ function launchFlash(){
 
   (function flashLoop(){
     ctx.clearRect(0, 0, W, H);
-
-    // --- 暗幕アルファを計算 ---
     let darkAlpha = 0;
     if(frame < DARK_FRAMES){
-      darkAlpha = frame / DARK_FRAMES;                          // 0→1
+      darkAlpha = frame / DARK_FRAMES;
     } else if(frame < DARK_FRAMES + HOLD_FRAMES){
-      darkAlpha = 1;                                            // 真っ暗
+      darkAlpha = 1;
     } else {
-      const t = frame - DARK_FRAMES - HOLD_FRAMES;
-      darkAlpha = Math.max(0, 1 - t / FADE_FRAMES);            // 1→0
+      darkAlpha = Math.max(0, 1 - (frame - DARK_FRAMES - HOLD_FRAMES) / FADE_FRAMES);
     }
-
-    // 暗幕を描く
     if(darkAlpha > 0){
       ctx.fillStyle = `rgba(0,0,0,${darkAlpha.toFixed(3)})`;
       ctx.fillRect(0, 0, W, H);
     }
 
-    // --- 光の線（暗幕が消え始めるタイミングで走る）---
     const lineStart = DARK_FRAMES + HOLD_FRAMES - 4;
     if(frame >= lineStart){
       const lineFade = Math.max(0, 1 - (frame - lineStart) / 35);
@@ -257,21 +275,20 @@ function launchFlash(){
         l.x += l.speed;
         if(l.x < W + l.halfW){
           const a = lineFade;
-          const grad = ctx.createLinearGradient(l.x - l.halfW, 0, l.x + l.halfW, 0);
-          grad.addColorStop(0,    `rgba(255,255,255,0)`);
+          const grad = ctx.createLinearGradient(l.x-l.halfW,0,l.x+l.halfW,0);
+          grad.addColorStop(0,    'rgba(255,255,255,0)');
           grad.addColorStop(0.35, `rgba(255,255,255,${(a*0.3).toFixed(3)})`);
           grad.addColorStop(0.5,  `rgba(255,255,255,${a.toFixed(3)})`);
           grad.addColorStop(0.65, `rgba(255,255,255,${(a*0.3).toFixed(3)})`);
-          grad.addColorStop(1,    `rgba(255,255,255,0)`);
-
+          grad.addColorStop(1,    'rgba(255,255,255,0)');
           ctx.save();
           ctx.shadowColor = `rgba(255,255,255,${a.toFixed(3)})`;
           ctx.shadowBlur  = 60;
           ctx.fillStyle   = grad;
-          ctx.fillRect(l.x - l.halfW, l.y - l.thickness*5, l.halfW*2, l.thickness*10);
+          ctx.fillRect(l.x-l.halfW, l.y-l.thickness*5, l.halfW*2, l.thickness*10);
           ctx.shadowBlur  = 0;
           ctx.fillStyle   = `rgba(255,255,255,${a.toFixed(3)})`;
-          ctx.fillRect(l.x - l.halfW, l.y - l.thickness/2, l.halfW*2, l.thickness);
+          ctx.fillRect(l.x-l.halfW, l.y-l.thickness/2, l.halfW*2, l.thickness);
           ctx.restore();
         }
       });
@@ -283,12 +300,11 @@ function launchFlash(){
   })();
 }
 
-// ---- ランダム発動（フラッシュは毎回追加で走る） ----
-const effects = [launchFireworks, launchConfetti, launchHearts, launchStars, launchBubbles, launchFlash];
+// ---- ランダム発動 ----
+const effects = [launchBlackHole, launchLightning, launchTextBoom, launchFlash];
 
-document.querySelectorAll('.dl').forEach(a=>{
-  a.addEventListener('click', ()=>{
-    const fn = effects[rndInt(0, effects.length)];
-    fn();
+document.querySelectorAll('.dl').forEach(a => {
+  a.addEventListener('click', () => {
+    effects[rndInt(0, effects.length)]();
   });
 });
