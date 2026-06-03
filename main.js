@@ -252,19 +252,15 @@ function launchLightning(done){
       bolt.alpha = Math.max(0, 1 - bolt.frame / 22);
       drawBolt(bolt.segs, bolt.alpha, bolt.width, bolt.color);
 
-      // 始点にコダック画像（bolt.alphaより長く残す・独立フェード）
+      // 始点にコダック画像（透明度変えない・ずっとくっきり）
       if(kodakImg.complete){
-        const KODAK_LIFE = 55;  // 雷より長く表示
-        const ka = Math.max(0, 1 - bolt.frame / KODAK_LIFE);
-        if(ka > 0){
-          const s = 70;
-          ctx.save();
-          ctx.globalAlpha = ka;
-          ctx.shadowColor = bolt.color;
-          ctx.shadowBlur  = 24;
-          ctx.drawImage(kodakImg, bolt.imgX - s/2, bolt.imgY - s/2, s, s);
-          ctx.restore();
-        }
+        const s = 70;
+        ctx.save();
+        ctx.globalAlpha = 1;
+        ctx.shadowColor = bolt.color;
+        ctx.shadowBlur  = 24;
+        ctx.drawImage(kodakImg, bolt.imgX - s/2, bolt.imgY - s/2, s, s);
+        ctx.restore();
       }
 
       bolt.frame++;
