@@ -1,0 +1,84 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f8f8f8;
+  color: #111;
+  min-height: 100vh;
+}
+
+header {
+  padding: 2rem;
+  border-bottom: 1px solid #ddd;
+}
+
+header h1 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.gallery {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.item {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.item img {
+  width: 100%;
+  display: block;
+  object-fit: contain;
+  background: #fafafa;
+  max-height: 480px;
+}
+
+.info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  gap: 1rem;
+}
+
+.title {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.dl {
+  display: inline-block;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid #111;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  text-decoration: none;
+  color: #111;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dl:hover {
+  background: #111;
+  color: #fff;
+}
+
+.empty {
+  color: #999;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 3rem 0;
+}
