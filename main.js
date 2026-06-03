@@ -256,7 +256,7 @@ function launchLightning(done){
       if(kodakImg.complete && bolt.alpha > 0){
         const s = 56;  // 一辺のサイズ
         ctx.save();
-        ctx.globalAlpha = bolt.alpha * 0.5;
+        ctx.globalAlpha = bolt.alpha;
         ctx.shadowColor = bolt.color;
         ctx.shadowBlur  = 20;
         ctx.drawImage(kodakImg, bolt.imgX - s/2, bolt.imgY - s/2, s, s);
@@ -431,7 +431,7 @@ function launchTextBoom(done){
       // 文字の裏に薄いコダック
       if(kodakImg.complete){
         ctx.save();
-        ctx.globalAlpha = textAlpha * 0.22;
+        ctx.globalAlpha = textAlpha * 0.5;
         ctx.drawImage(kodakImg, cx - imgSize/2, cy - imgSize/2, imgSize, imgSize);
         ctx.restore();
       }
